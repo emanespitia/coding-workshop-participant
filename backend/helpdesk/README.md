@@ -170,7 +170,7 @@ users and incidents, invoke the Lambda directly with the `seed_demo_data` task (
 `./bin/deploy-backend.sh`):
 
 ```sh
-source ENVIRONMENT.config && export AWS_REGION=us-east-1     # from the repo root
+source ENVIRONMENT.config     # from the repo root; uses AWS_REGION from your shell (us-east-2 here)
 aws lambda invoke --function-name coding-workshop-helpdesk-$PARTICIPANT_ID \
     --cli-binary-format raw-in-base64-out \
     --payload '{"task": "seed_demo_data"}' /tmp/seed-result.json && cat /tmp/seed-result.json
