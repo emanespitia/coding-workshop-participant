@@ -1,0 +1,3 @@
+[MESSAGES CONTROL]
+# not-callable: false positive on SQLAlchemy's dynamic func.* (func.now(), func.count()).
+disable=not-callable
