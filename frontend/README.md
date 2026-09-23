@@ -1,63 +1,68 @@
-# Coding Workshop - Frontend Code
+# ACME Facilities Helpdesk: Frontend
 
-## Overview
+React app for reporting and tracking facility incidents. Built with Vite, Material UI
+(components and theme), React Responsive (screen-size layouts) and React Router.
 
-This folder contains React frontend application with hello world example.
+The look and colors for every page are defined in [DESIGN.md](DESIGN.md).
 
-## Prerequisites
+## Run locally
 
-- React - JavaScript library for building user interfaces
-- React Router - Client-side routing for React
-- Material UI - Comprehensive UI component library
-
-## Structure
-
-```
-coding-workshop-participant/
-├── frontend/              # React frontend
-│   ├── public/              # Public assets
-│   ├── src/                 # Source code
-│   │   ├── pages/             # Page components
-│   │   ├── components/        # Reusable components
-│   │   ├── services/          # API client
-│   │   └── App.js             # Main app
-│   ├── .env.sample          # React environment variables
-│   ├── eslint.config.js     # ESLint JS tool configuration
-│   ├── index.html           # Landing page
-│   ├── package.json         # App metadata with dependencies
-│   ├── README.md            # Frontend guide (YOU ARE HERE)
-│   └── vite.config.js       # Vite build tool configuration
-├── ...
-```
-
-## Usage
-
-### Local Development
-
-To run your application locally:
+The app calls the API at `/api/helpdesk` on its own origin. In development, Vite forwards
+those requests to the FastAPI server, so start the backend first (see
+[backend/helpdesk/README.md](../backend/helpdesk/README.md)):
 
 ```sh
-./bin/start-dev.sh
+# terminal 1: API on http://localhost:8000
+cd backend/helpdesk && .venv/bin/uvicorn app.main:app --reload
+
+# terminal 2: app on http://localhost:3000
+cd frontend
+npm install        # once
+npm run dev
 ```
 
-To view your application, open the browser and navigate to `http://localhost:3000`.
+Open http://localhost:3000 and sign in with a demo account (the login page has one-click
+buttons for them in development). Every demo account's password is `Password123`.
 
-### Cloud Deployment
+To point the dev server at a different API, set `HELPDESK_API_TARGET` (see `.env.sample`).
 
-To deploy your frontend to AWS:
+## Scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server with hot reload on port 3000 |
+| `npm test` | Run the tests once (Vitest + Testing Library) |
+| `npm run test:watch` | Re-run tests as files change |
+| `npm run lint` | ESLint |
+| `npm run build` | Production build into `dist/` |
+
+## Layout
+
+```
+src/
+├── main.jsx             entry point (fonts, global CSS)
+├── App.jsx              theme, auth provider and router
+├── routes.jsx           every page and which ones need sign-in
+├── theme/               design tokens (all colors) and the MUI theme; see DESIGN.md
+├── constants/           labels for statuses, priorities and categories
+├── services/api.js      fetch wrapper: tokens, error envelope, automatic token refresh
+├── auth/                AuthProvider (signed-in user), useAuth, route guards (sign-in, role)
+├── layout/              AppLayout (top bar + phone menu), AccountMenu, navigation.js (links per role)
+├── hooks/               useBreakpoints (React Responsive)
+├── components/          shared pieces (PasswordField, BrandMark, …)
+├── pages/               one folder or file per page (auth/: sign in, register)
+└── test/                test setup and helpers (fake API, screen width)
+```
+
+Signing in stores the access and refresh tokens in `localStorage`. When the access token
+expires, the next request refreshes it automatically; if the session was revoked (for
+example after a password reset), the user is sent back to the sign-in page.
+
+## Deploy to AWS
 
 ```sh
 ./bin/deploy-frontend.sh
 ```
 
-To view your application, open the browser and navigate to CloudFront URL.
-
-## Clean Up
-
-To remove all deployed resources (including frontend):
-
-```sh
-./bin/cleanup-environment.sh
-```
-
-**Warning**: This removes all infra resources. Cannot be undone.
+The build is uploaded to S3 and served by CloudFront, which also routes `/api/helpdesk*`
+to the backend Lambda, so the app and the API share one domain.
