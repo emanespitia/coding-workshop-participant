@@ -1,0 +1,5 @@
+SQLAlchemy==2.0.54
+psycopg[binary]==3.2.3
+PyJWT==2.10.1
+pydantic==2.13.5
+email-validator==2.3.0

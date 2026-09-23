@@ -1,0 +1,12 @@
+# bin/start-dev.sh pip-installs dependencies into this folder for Lambda hot reload.
+# Track only our own files.
+/*
+!/.gitignore
+!/app/
+!/tests/
+!/function.py
+!/requirements.txt
+!/requirements-dev.txt
+!/pytest.ini
+!/.pylintrc
+!/README.md
