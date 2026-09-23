@@ -15,7 +15,8 @@ client = TestClient(app, raise_server_exceptions=False)
 def _override_db(exc: Exception):
     def broken():
         raise exc
-        yield  # pragma: no cover  (makes this a generator dependency)
+        # makes this a generator dependency
+        yield  # pragma: no cover  # pylint: disable=unreachable
     app.dependency_overrides[get_db] = broken
 
 

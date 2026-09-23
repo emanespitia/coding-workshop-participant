@@ -11,7 +11,7 @@ import logging
 from contextlib import contextmanager
 from typing import Iterator, Optional
 
-from psycopg.errors import ForeignKeyViolation, UniqueViolation
+from psycopg.errors import ForeignKeyViolation, RestrictViolation, UniqueViolation
 from sqlalchemy import Engine, create_engine, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
@@ -78,14 +78,15 @@ def integrity_guard(*, duplicate: Optional[ConflictError] = None,
 
     Args:
         duplicate: Raised for unique-constraint violations.
-        in_use: Raised for foreign-key violations (e.g. deleting a referenced row).
+        in_use: Raised when a delete is blocked because other rows still reference
+            this one (foreign keys with ON DELETE NO ACTION or RESTRICT).
     """
     try:
         yield
     except IntegrityError as exc:
         if duplicate is not None and isinstance(exc.orig, UniqueViolation):
             raise duplicate from exc
-        if in_use is not None and isinstance(exc.orig, ForeignKeyViolation):
+        if in_use is not None and isinstance(exc.orig, (ForeignKeyViolation, RestrictViolation)):
             raise in_use from exc
         raise
 

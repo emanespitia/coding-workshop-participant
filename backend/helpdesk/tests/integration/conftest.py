@@ -143,3 +143,37 @@ def employee(make_user):
 def engineer(make_user):
     """An active engineer."""
     return make_user("engineer", profile={"specialties": ["hvac"]})
+
+
+@pytest.fixture
+def place():
+    """A building with one floor and one seat, plus a second building."""
+    from app.facilities.models import Building, Floor, Seat  # pylint: disable=import-outside-toplevel
+
+    with db.session_scope() as session:
+        hq = Building(name="HQ")
+        annex = Building(name="Annex")
+        session.add_all([hq, annex])
+        session.flush()
+        floor = Floor(building_id=hq.id, name="Ground", level=0)
+        annex_floor = Floor(building_id=annex.id, name="Ground", level=0)
+        session.add_all([floor, annex_floor])
+        session.flush()
+        seat = Seat(floor_id=floor.id, code="G-01")
+        session.add(seat)
+        session.flush()
+        return {"building_id": hq.id, "floor_id": floor.id, "seat_id": seat.id,
+                "other_building_id": annex.id, "other_floor_id": annex_floor.id}
+
+
+@pytest.fixture
+def report(api, place):
+    """Report an incident as `user`; returns the incident dict."""
+    def _report(user: dict, **fields) -> dict:
+        body = {"title": "Aircon not working", "description": "Room is 30C", "category": "hvac",
+                "building_id": place["building_id"], **fields}
+        res = api("POST", "/incidents", body, token=user["token"])
+        assert res.status == 201, res.body
+        return res.body["incident"]
+
+    return _report

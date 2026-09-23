@@ -25,13 +25,25 @@ data. All demo accounts use the password **`Password123`**:
 | Role | Accounts |
 | --- | --- |
 | Admin | `admin@acme.inc`, `morgan.facilities@acme.inc` |
-| Engineer | `sam.rivera@` (hvac, electrical), `priya.shah@` (network, it_hardware, av_equipment), `diego.martinez@` (plumbing, cleaning; busy), `lee.chen@` (security, access_control; off duty) |
-| Employee | `jane.doe@`, `john.smith@`, `maria.garcia@` |
+| Engineer | `sam.rivera@` (hvac, electrical), `priya.shah@` (network, it_hardware, av_equipment), `diego.martinez@` (plumbing, cleaning; busy), `lee.chen@` (security, access_control; off duty), `tom.okafor@` (furniture, other) |
+| Employee | `jane.doe@`, `john.smith@`, `maria.garcia@`, `nina.patel@` (must change password at first sign-in), `chris.taylor@` (deactivated, can't sign in) |
 
 Buildings: **HQ Tower** (Basement, Ground, Floor 1, Floor 2), **Riverside Annex** (Ground, Floor 1),
 **Innovation Lab** (Ground), each floor with seats (e.g. `1A-01`).
 
-Seeding only adds what is missing; demo records you delete come back on the next start.
+22 demo incidents, created only when there are no incidents yet, with backdated history spread
+over the last 30 days (plus one 45-day-old incident outside the default report window):
+
+- every status: open, in progress, blocked, resolved, closed (including one cancelled by its reporter)
+- every workflow step: start, block, unblock, resolve, admin reopen, admin close, reassign,
+  unassign mid-work (falls back to Open), priority change, reporter edit
+- escalations (two active, one de-escalated by an admin)
+- assignment requests in every state: pending, approved, rejected with a note, withdrawn
+- notes from reporters, engineers and an admin
+
+So every list, filter, incident history and dashboard section has data to show.
+
+Seeding only adds what is missing; demo users and places you delete come back on the next start.
 To start over from a clean database:
 
 ```sh
@@ -52,7 +64,10 @@ app/core/              config, db (SQLAlchemy engine + sessions), deps (FastAPI 
 app/auth/              routes + schemas: register, login, refresh, me, change password
 app/users/             models (SQLAlchemy), schemas (Pydantic), routes, service (rules), repository (queries)
 app/facilities/        buildings, floors, seats: models, schemas, routes, service
-app/seed.py            local demo data (users + facilities); python -m app.seed [--reset]
+app/incidents/         models, schemas, workflow (status rules + permissions, no DB), service
+                       (lifecycle), notes, assignments (engineer requests), routes, assignment_routes
+app/reports/           dashboard summary: SQL aggregates scoped by role
+app/seed.py            local demo data (users, facilities, incidents); python -m app.seed [--reset]
 tests/unit/            no database needed
 tests/integration/     run against a real PostgreSQL (database `helpdesk_test`)
 ```
@@ -76,10 +91,59 @@ tests/integration/     run against a real PostgreSQL (database `helpdesk_test`)
 | GET / PATCH / DELETE | `/floors/{id}` | read: signed in · write: admin |
 | GET / POST | `/floors/{id}/seats` | read: signed in · write: admin |
 | GET / PATCH / DELETE | `/seats/{id}` | read: signed in · write: admin |
+| GET / POST | `/incidents` | signed in (list is limited to what you may see) |
+| GET / PATCH / DELETE | `/incidents/{id}` | view: who can see it · edit: reporter while open, admin · delete: admin |
+| POST | `/incidents/{id}/status` | per workflow rules (see below) |
+| POST | `/incidents/{id}/assign` | admin |
+| POST / DELETE | `/incidents/{id}/escalate`, `/incidents/{id}/escalation` | reporter or admin / admin |
+| GET | `/incidents/{id}/events` | who can see it |
+| GET / POST | `/incidents/{id}/notes` | read: who can see it · write: reporter, assignee, admin |
+| PATCH / DELETE | `/incidents/{id}/notes/{note_id}` | author (admins can delete any) |
+| POST | `/incidents/{id}/assignment-requests` | engineer |
+| GET | `/assignment-requests` | admin (all), engineer (own) |
+| POST | `/assignment-requests/{id}/approve`, `/reject` | admin |
+| POST | `/assignment-requests/{id}/withdraw` | the requesting engineer |
+| GET | `/reports/summary?days=30&building_id=` | signed in (admin: everything · engineer: assigned to them · employee: reported by them) |
 | GET | `/health` | public |
 | GET | `/docs`, `/openapi.json` | public (interactive API docs) |
 
 Errors always look like `{"error": {"code": "...", "message": "...", "fields": {...}}}`.
+
+## Incident workflow
+
+| From → To | Who | Requires `comment` |
+| --- | --- | --- |
+| open → in_progress | assigned engineer, admin (needs an assignee) | |
+| open → closed | reporter, admin | reason |
+| in_progress → blocked | assigned engineer, admin | reason |
+| blocked → in_progress | assigned engineer, admin | |
+| in_progress → resolved | assigned engineer, admin | resolution |
+| resolved → closed | admin | |
+| resolved → in_progress | admin (reopen) | reason |
+| in_progress / blocked → closed | admin | reason |
+
+Visibility: employees see incidents they reported; engineers see their assigned work and the
+open, unassigned pool; admins see everything. Incident details include `allowed_transitions`
+and `allowed_actions` for the current user. Every change is recorded in `/events`, and
+`acknowledged_at`, `assigned_at`, `resolved_at`, `closed_at` support response-time reporting.
+
+## Reports
+
+`GET /reports/summary` returns everything a dashboard needs in one call, scoped to the caller:
+
+| Section | Admin | Engineer | Employee |
+| --- | --- | --- | --- |
+| `totals`, `by_status`, `by_priority` (active), `by_category`, `trend` (per day) | all incidents | assigned to them | reported by them |
+| `response_times`: hours to acknowledge / assign / resolve (avg + median) | ✓ | ✓ | ✓ |
+| `attention`: escalated and blocked incidents, with reasons | ✓ | ✓ | ✓ |
+| `totals.available_pool`: open, unassigned incidents they can request | | ✓ | |
+| `communication`: share of incidents with a staff note, time to first note | ✓ | | ✓ |
+| `workload`: each engineer's availability, load and pending requests | ✓ | | |
+| `hotspots`: top buildings, floors and seats | ✓ | | |
+
+`days` (default 30) sets the window for `trend`, `by_category`, `response_times`,
+`communication` and `hotspots`; `building_id` narrows everything to one building. Sections a
+role doesn't get are `null`.
 
 ## Database
 

@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core import security
 from app.core.constants import ROLE_ADMIN, ROLE_ENGINEER
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
+from app.incidents import service as incident_service
 from app.users import repository as repo
 from app.users.models import EngineerProfile, User
 from app.users.schemas import NO_SPECIALTY_MESSAGE
@@ -129,6 +130,18 @@ def update_user(session: Session, actor: User, user_id: int,
         _ensure_unique_email(session, changes["email"], exclude_id=target.id)
 
     new_role = changes.get("role", target.role)
+    stops_engineering = target.role == ROLE_ENGINEER and (
+        new_role != ROLE_ENGINEER or changes.get("is_active") is False
+    )
+    if stops_engineering:
+        open_work = incident_service.active_incident_ids(session, target.id)
+        if open_work:
+            raise ConflictError(
+                "Reassign this engineer's open incidents first: " + ", ".join(f"#{i}" for i in open_work),
+                code="ENGINEER_HAS_OPEN_INCIDENTS",
+            )
+        incident_service.withdraw_pending_requests(session, target.id)
+
     if profile_changes and new_role != ROLE_ENGINEER:
         raise ValidationError({"engineer_profile": "Only engineers have an engineer profile"})
 

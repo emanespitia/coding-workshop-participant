@@ -34,6 +34,9 @@ from app.core.errors import (
 )
 from app.core.schemas import error_fields
 from app.facilities.routes import router as facilities_router
+from app.incidents.assignment_routes import router as assignment_router
+from app.incidents.routes import router as incidents_router
+from app.reports.routes import router as reports_router
 from app.users.routes import router as users_router
 
 logger = logging.getLogger(__name__)
@@ -63,6 +66,9 @@ app = FastAPI(
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(facilities_router)
+app.include_router(incidents_router)
+app.include_router(assignment_router)
+app.include_router(reports_router)
 
 
 @app.get("/health", tags=["system"])
