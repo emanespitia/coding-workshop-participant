@@ -4,7 +4,19 @@ import HomePage from './pages/HomePage'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import NotFoundPage from './pages/NotFoundPage'
-import PlaceholderPage from './pages/PlaceholderPage'
+import ChangePasswordPage from './pages/account/ChangePasswordPage'
+import ProfilePage from './pages/account/ProfilePage'
+import AvailableIncidentsPage from './pages/incidents/AvailableIncidentsPage'
+import RequestsPage from './pages/requests/RequestsPage'
+import EditIncidentPage from './pages/incidents/EditIncidentPage'
+import IncidentDetailPage from './pages/incidents/IncidentDetailPage'
+import IncidentListPage from './pages/incidents/IncidentListPage'
+import ReportIncidentPage from './pages/incidents/ReportIncidentPage'
+
+/** A route whose page is downloaded only when first opened (admin-only pages). */
+function onDemand(path, load) {
+  return { path, lazy: async () => ({ Component: (await load()).default }) }
+}
 
 /** Every page in the app. Used by the browser router and by tests (memory router). */
 export const routes = [
@@ -22,22 +34,27 @@ export const routes = [
         element: <AppLayout />,
         children: [
           { path: '/', element: <HomePage /> },
-          { path: '/incidents', element: <PlaceholderPage /> },
-          { path: '/incidents/new', element: <PlaceholderPage /> },
-          { path: '/account/password', element: <PlaceholderPage title="Change password" description="Choose a new password for your account." /> },
+          { path: '/incidents', element: <IncidentListPage /> },
+          { path: '/incidents/new', element: <ReportIncidentPage /> },
+          { path: '/incidents/:id', element: <IncidentDetailPage /> },
+          { path: '/incidents/:id/edit', element: <EditIncidentPage /> },
+          { path: '/account/password', element: <ChangePasswordPage /> },
+          { path: '/account/profile', element: <ProfilePage /> },
           {
             element: <RequireRole roles={['engineer']} />,
-            children: [{ path: '/incidents/available', element: <PlaceholderPage /> }],
+            children: [{ path: '/incidents/available', element: <AvailableIncidentsPage /> }],
           },
           {
             element: <RequireRole roles={['engineer', 'admin']} />,
-            children: [{ path: '/requests', element: <PlaceholderPage /> }],
+            children: [{ path: '/requests', element: <RequestsPage /> }],
           },
           {
             element: <RequireRole roles={['admin']} />,
             children: [
-              { path: '/facilities', element: <PlaceholderPage /> },
-              { path: '/users', element: <PlaceholderPage /> },
+              onDemand('/facilities', () => import('./pages/facilities/FacilitiesPage')),
+              onDemand('/facilities/:id', () => import('./pages/facilities/BuildingPage')),
+              onDemand('/users', () => import('./pages/users/UsersPage')),
+              onDemand('/users/:id', () => import('./pages/users/UserPage')),
             ],
           },
           { path: '*', element: <NotFoundPage /> },

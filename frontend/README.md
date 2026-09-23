@@ -48,9 +48,12 @@ src/
 ├── services/api.js      fetch wrapper: tokens, error envelope, automatic token refresh
 ├── auth/                AuthProvider (signed-in user), useAuth, route guards (sign-in, role)
 ├── layout/              AppLayout (top bar + phone menu), AccountMenu, navigation.js (links per role)
-├── hooks/               useBreakpoints (React Responsive)
-├── components/          shared pieces (PasswordField, BrandMark, …)
-├── pages/               one folder or file per page (auth/: sign in, register)
+├── hooks/               useBreakpoints (React Responsive), useApiData (load API data), useChartColors
+├── components/          shared pieces (IncidentChips, ReasonDialog, PageStatus, PasswordField, …)
+├── utils/               formatting, validation, incident workflow helpers
+├── pages/               auth/ (sign in, register), account/ (profile, change password), incidents/
+│                        (list, available, report, detail, edit), requests/, dashboard/ (per role,
+│                        admin charts), facilities/, users/ (admin)
 └── test/                test setup and helpers (fake API, screen width)
 ```
 

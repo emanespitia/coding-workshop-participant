@@ -3,7 +3,13 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import { tokenStore } from '../../services/api'
+import { listOf, makeSummary } from '../../test/fixtures'
 import { apiError, jsonResponse, makeUser, mockApi, renderApp, TOKENS } from '../../test/utils'
+
+const DASHBOARD = {
+  'GET /reports/summary': jsonResponse(200, makeSummary()),
+  'GET /incidents': jsonResponse(200, listOf([])),
+}
 
 const passwordInput = () => screen.getByLabelText('Password', { selector: 'input' })
 const confirmInput = () => screen.getByLabelText('Confirm password', { selector: 'input' })
@@ -23,6 +29,7 @@ describe('Register page', () => {
       'POST /auth/register': jsonResponse(201, {
         user: makeUser({ full_name: 'Sam Lee', email: 'sam.lee@acme.inc' }), tokens: TOKENS,
       }),
+      ...DASHBOARD,
     })
     const user = userEvent.setup()
     renderApp('/register')
@@ -30,7 +37,7 @@ describe('Register page', () => {
     await fillForm(user, { name: '  Sam Lee ' })
     await submit(user)
 
-    expect(await screen.findByRole('heading', { name: 'Welcome, Sam' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Hi, Sam' })).toBeInTheDocument()
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
       email: 'sam.lee@acme.inc', full_name: 'Sam Lee', password: 'Welcome2026',
     })
@@ -148,8 +155,8 @@ describe('Register page', () => {
   })
 
   it('sends signed-in users to their dashboard', async () => {
-    mockApi({ 'GET /auth/me': jsonResponse(200, { user: makeUser() }) })
+    mockApi({ 'GET /auth/me': jsonResponse(200, { user: makeUser() }), ...DASHBOARD })
     renderApp('/register', { tokens: TOKENS })
-    expect(await screen.findByRole('heading', { name: 'Welcome, Maria' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Hi, Maria' })).toBeInTheDocument()
   })
 })

@@ -6,7 +6,7 @@ import { useAuth } from '../../auth/AuthContext'
 import PasswordField from '../../components/PasswordField'
 import AuthShell from './AuthShell'
 import DemoAccounts from './DemoAccounts'
-import { describeAuthError, EMAIL_PATTERN } from './formHelpers'
+import { describeAuthError, EMAIL_PATTERN } from '../../utils/validation'
 
 function validate({ email, password }) {
   const errors = {}

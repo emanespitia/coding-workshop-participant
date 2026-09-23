@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import {
   AppBar, Box, Button, Chip, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText,
   Stack, Toolbar,
@@ -9,6 +9,7 @@ import { Link as RouterLink, NavLink, Outlet } from 'react-router'
 
 import { useAuth } from '../auth/AuthContext'
 import BrandMark from '../components/BrandMark'
+import { PageLoading } from '../components/PageStatus'
 import { useBreakpoints } from '../hooks/useBreakpoints'
 import AccountMenu from './AccountMenu'
 import { navItemsFor, ROLE_LABELS } from './navigation'
@@ -126,7 +127,9 @@ export default function AppLayout() {
       )}
 
       <Box component="main" sx={{ maxWidth: 1200, mx: 'auto', px: 2, py: { xs: 3, md: 4 } }}>
-        <Outlet />
+        <Suspense fallback={<PageLoading />}>
+          <Outlet />
+        </Suspense>
       </Box>
     </Box>
   )

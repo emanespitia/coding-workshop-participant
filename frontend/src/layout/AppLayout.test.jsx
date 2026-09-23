@@ -57,7 +57,7 @@ describe('Navigation bar', () => {
 
   it('lets admins open admin pages', async () => {
     await signedInAs('admin', '/users')
-    expect(screen.getByRole('heading', { name: 'Users' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
   })
 })
 

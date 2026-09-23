@@ -46,6 +46,9 @@ const light = {
     high: { fg: '#8f4a0c', bg: '#fbebd9' },
     critical: { fg: '#ffffff', bg: '#b3261e' },
   },
+  // Chart series, in this fixed order. Validated with the data-viz palette checks
+  // (lightness band, chroma, colour-blind separation, contrast on background.paper).
+  chart: { series: ['#008a7e', '#d06a1f'], meter: '#008a7e', track: '#e3ebe9', grid: '#e3ebe9' },
 }
 
 const dark = {
@@ -83,6 +86,7 @@ const dark = {
     high: { fg: '#f3bb86', bg: '#3b2814' },
     critical: { fg: '#1f0d0c', bg: '#ec8a82' },
   },
+  chart: { series: ['#1f9d92', '#c9742f'], meter: '#1f9d92', track: '#243034', grid: '#2b373b' },
 }
 
 export const tokens = { light, dark }

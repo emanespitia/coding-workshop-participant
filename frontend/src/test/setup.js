@@ -28,6 +28,21 @@ window.matchMedia = (query) => ({
   dispatchEvent: () => false,
 })
 
+// Charts measure their container; jsdom has no layout, so report a fixed size.
+globalThis.ResizeObserver ??= class {
+  constructor(callback) {
+    this.callback = callback
+  }
+
+  observe(target) {
+    this.callback([{ target, contentRect: { width: 800, height: 300 } }])
+  }
+
+  unobserve() {}
+
+  disconnect() {}
+}
+
 afterEach(() => {
   cleanup()
   localStorage.clear()

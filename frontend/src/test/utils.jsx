@@ -49,9 +49,17 @@ export function mockApi(handlers) {
   const fetchMock = vi.fn(async (url, init = {}) => {
     const method = init.method || 'GET'
     const path = String(url).replace(/^\/api\/helpdesk/, '')
-    const handler = handlers[`${method} ${path}`]
+    const [pathname, search = ''] = path.split('?')
+    // An exact match (with query string) wins over a match on the path alone.
+    const handler = handlers[`${method} ${path}`] ?? handlers[`${method} ${pathname}`]
     if (!handler) return apiError(599, 'UNMOCKED', `No mock for ${method} ${path}`)
-    const request = { method, path, headers: init.headers || {}, body: init.body ? JSON.parse(init.body) : undefined }
+    const request = {
+      method,
+      path: pathname,
+      query: new URLSearchParams(search),
+      headers: init.headers || {},
+      body: init.body ? JSON.parse(init.body) : undefined,
+    }
     const response = typeof handler === 'function' ? await handler(request) : handler
     return response.clone()
   })

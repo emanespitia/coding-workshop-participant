@@ -55,6 +55,13 @@ Labels for statuses, priorities and categories are in
 [`src/constants/incidents.js`](src/constants/incidents.js). Every text/background pair
 meets WCAG AA contrast (4.5:1) in both modes.
 
+### Charts
+
+Charts use `@mui/x-charts` with the colors from `useChartColors()` (tokens `chart.series`,
+in fixed order: teal, then orange). Both modes pass the data-viz palette checks (lightness
+band, chroma, colour-blind separation, contrast). One-series charts use slot 1 and no legend;
+every chart has a "Show as table" option. Prefer a table or ranked list when it reads better.
+
 ## Type
 
 **Inter** (bundled, no external font requests). Use MUI variants, not custom sizes:

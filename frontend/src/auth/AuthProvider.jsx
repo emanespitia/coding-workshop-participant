@@ -51,9 +51,21 @@ export default function AuthProvider({ children }) {
     startSession(await api.post('/auth/register', { email, full_name: fullName, password }, { auth: false }))
   }, [startSession])
 
+  // Changing the password ends other sessions, so the server sends fresh tokens.
+  const changePassword = useCallback(async (currentPassword, newPassword) => {
+    startSession(await api.put('/auth/password', { current_password: currentPassword, new_password: newPassword }))
+  }, [startSession])
+
+  // Save changes to your own account (name, engineer availability and phone).
+  const updateProfile = useCallback(async (changes) => {
+    const data = await api.patch(`/users/${user.id}`, changes)
+    setUser(data.user)
+    return data.user
+  }, [user])
+
   const value = useMemo(
-    () => ({ user, status, signIn, register, signOut }),
-    [user, status, signIn, register, signOut],
+    () => ({ user, status, signIn, register, signOut, changePassword, updateProfile }),
+    [user, status, signIn, register, signOut, changePassword, updateProfile],
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

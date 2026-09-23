@@ -1,25 +1,24 @@
-import { Alert, Paper, Stack, Typography } from '@mui/material'
+import { lazy, Suspense } from 'react'
+import { useLocation } from 'react-router'
 
 import { useAuth } from '../auth/AuthContext'
+import { PageLoading } from '../components/PageStatus'
+import EmployeeDashboard from './dashboard/EmployeeDashboard'
+import EngineerDashboard from './dashboard/EngineerDashboard'
 
-/** Dashboard stand-in until the per-role dashboards are built. */
+// Loaded on demand: the admin dashboard brings the chart library, which other roles never need.
+const AdminDashboard = lazy(() => import('./dashboard/AdminDashboard'))
+
+/** The dashboard for the signed-in user's role. */
 export default function HomePage() {
   const { user } = useAuth()
-  const firstName = user.full_name.split(' ')[0]
+  const flash = useLocation().state?.flash
 
+  if (user.role === 'employee') return <EmployeeDashboard flash={flash} />
+  if (user.role === 'engineer') return <EngineerDashboard flash={flash} />
   return (
-    <Stack spacing={3}>
-      <Typography variant="h2" component="h1">Welcome, {firstName}</Typography>
-      {user.must_change_password && (
-        <Alert severity="warning">
-          You need to choose a new password before using the helpdesk. That screen is coming next.
-        </Alert>
-      )}
-      <Paper variant="outlined" sx={{ p: 3, borderStyle: 'dashed' }}>
-        <Typography sx={{ color: 'text.secondary' }}>
-          Your dashboard is coming soon. Use the menu to find your way around.
-        </Typography>
-      </Paper>
-    </Stack>
+    <Suspense fallback={<PageLoading label="Loading the overview" />}>
+      <AdminDashboard flash={flash} />
+    </Suspense>
   )
 }

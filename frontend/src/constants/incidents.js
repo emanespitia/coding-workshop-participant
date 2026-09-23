@@ -28,3 +28,16 @@ export const CATEGORY_LABELS = {
   access_control: 'Access control',
   other: 'Other',
 }
+
+export const AVAILABILITY_LABELS = {
+  available: 'Available',
+  busy: 'Busy',
+  off_duty: 'Off duty',
+}
+
+export const REQUEST_STATUS_LABELS = {
+  pending: 'Waiting for an admin',
+  approved: 'Approved',
+  rejected: 'Turned down',
+  withdrawn: 'Withdrawn',
+}

@@ -3,7 +3,14 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import { tokenStore } from '../../services/api'
+import { listOf, makeSummary } from '../../test/fixtures'
 import { apiError, jsonResponse, makeUser, mockApi, renderApp, setScreenWidth, TOKENS } from '../../test/utils'
+
+// What an employee's dashboard loads.
+const DASHBOARD = {
+  'GET /reports/summary': jsonResponse(200, makeSummary()),
+  'GET /incidents': jsonResponse(200, listOf([])),
+}
 
 async function fillAndSubmit(user, email, password) {
   if (email) await user.type(screen.getByLabelText('Work email'), email)
@@ -36,13 +43,14 @@ describe('Login page', () => {
   it('signs in and shows the signed-in page', async () => {
     const fetchMock = mockApi({
       'POST /auth/login': jsonResponse(200, { user: makeUser(), tokens: TOKENS }),
+      ...DASHBOARD,
     })
     const user = userEvent.setup()
     renderApp('/login')
 
     await fillAndSubmit(user, '  Maria.Garcia@acme.inc ', 'Password123')
 
-    expect(await screen.findByRole('heading', { name: 'Welcome, Maria' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Hi, Maria' })).toBeInTheDocument()
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
       email: 'Maria.Garcia@acme.inc', password: 'Password123',
     })
@@ -132,14 +140,14 @@ describe('Saved sessions', () => {
     mockApi({ 'GET /auth/me': jsonResponse(200, { user: makeUser({ full_name: 'Priya Shah', role: 'engineer' }) }) })
     renderApp('/', { tokens: TOKENS })
 
-    expect(await screen.findByRole('heading', { name: 'Welcome, Priya' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Hi, Priya' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'My work' })).toBeInTheDocument()
   })
 
   it('sends signed-in users away from the sign-in page', async () => {
-    mockApi({ 'GET /auth/me': jsonResponse(200, { user: makeUser() }) })
+    mockApi({ 'GET /auth/me': jsonResponse(200, { user: makeUser() }), ...DASHBOARD })
     renderApp('/login', { tokens: TOKENS })
-    expect(await screen.findByRole('heading', { name: 'Welcome, Maria' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Hi, Maria' })).toBeInTheDocument()
   })
 
   it('goes back to sign-in when the saved session was revoked', async () => {

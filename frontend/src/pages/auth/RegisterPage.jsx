@@ -1,13 +1,12 @@
 import { useState } from 'react'
-import { Alert, Box, Button, CircularProgress, Link, Stack, TextField, Typography } from '@mui/material'
-import CheckCircle from '@mui/icons-material/CheckCircle'
-import RadioButtonUnchecked from '@mui/icons-material/RadioButtonUnchecked'
+import { Alert, Button, CircularProgress, Link, Stack, TextField, Typography } from '@mui/material'
 import { Link as RouterLink } from 'react-router'
 
 import { useAuth } from '../../auth/AuthContext'
 import PasswordField from '../../components/PasswordField'
+import PasswordRules from '../../components/PasswordRules'
 import AuthShell from './AuthShell'
-import { describeAuthError, EMAIL_DOMAIN, EMAIL_PATTERN, PASSWORD_RULES } from './formHelpers'
+import { describeAuthError, EMAIL_DOMAIN, EMAIL_PATTERN, mapFieldErrors, passwordError } from '../../utils/validation'
 
 const EMPTY = { fullName: '', email: '', password: '', confirm: '' }
 
@@ -21,9 +20,8 @@ function validate({ fullName, email, password, confirm }) {
   else if (!EMAIL_PATTERN.test(cleanEmail)) errors.email = 'Enter an email like jane.doe@acme.inc'
   else if (!cleanEmail.endsWith(`@${EMAIL_DOMAIN}`)) errors.email = `Use your @${EMAIL_DOMAIN} work email`
 
-  const broken = PASSWORD_RULES.find((rule) => !rule.test(password))
-  if (!password) errors.password = 'Choose a password'
-  else if (broken) errors.password = `Password needs: ${broken.label.toLowerCase()}`
+  const badPassword = passwordError(password)
+  if (badPassword) errors.password = badPassword
 
   if (!confirm) errors.confirm = 'Type the password again'
   else if (confirm !== password) errors.confirm = "The passwords don't match"
@@ -32,36 +30,6 @@ function validate({ fullName, email, password, confirm }) {
 
 // The API names fields in snake_case.
 const API_FIELDS = { full_name: 'fullName', email: 'email', password: 'password' }
-
-/** Live checklist of the password rules under the password field. */
-function PasswordRules({ password }) {
-  return (
-    <Stack component="ul" spacing={0.5} aria-label="Password rules" sx={{ m: 0, p: 0, listStyle: 'none' }}>
-      {PASSWORD_RULES.map((rule) => {
-        const met = rule.test(password)
-        return (
-          <Stack
-            key={rule.label}
-            component="li"
-            direction="row"
-            spacing={1}
-            sx={{ alignItems: 'center', color: met ? 'success.main' : 'text.secondary' }}
-          >
-            {met ? <CheckCircle sx={{ fontSize: 16 }} /> : <RadioButtonUnchecked sx={{ fontSize: 16 }} />}
-            <Typography variant="body2">
-              {rule.label}
-              <Box component="span" sx={visuallyHidden}>{met ? ' (done)' : ' (not yet)'}</Box>
-            </Typography>
-          </Stack>
-        )
-      })}
-    </Stack>
-  )
-}
-
-const visuallyHidden = {
-  position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap',
-}
 
 export default function RegisterPage() {
   const { register } = useAuth()
@@ -87,9 +55,7 @@ export default function RegisterPage() {
       await register({ fullName: values.fullName.trim(), email: values.email.trim(), password: values.password })
       // Signed in: the /register route redirects to the dashboard.
     } catch (error) {
-      const fields = Object.fromEntries(
-        Object.entries(error.fields || {}).map(([name, message]) => [API_FIELDS[name] ?? name, message]),
-      )
+      const fields = mapFieldErrors(error.fields, API_FIELDS)
       if (error.code === 'EMAIL_TAKEN') fields.email = 'An account with this email already exists'
       setFieldErrors(fields)
       setFormError(Object.keys(fields).length ? null : describeAuthError(error))

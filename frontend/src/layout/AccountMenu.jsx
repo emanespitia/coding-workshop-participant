@@ -7,6 +7,7 @@ import CheckIcon from '@mui/icons-material/Check'
 import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined'
 import LightModeOutlined from '@mui/icons-material/LightModeOutlined'
 import LockResetOutlined from '@mui/icons-material/LockResetOutlined'
+import PersonOutlined from '@mui/icons-material/PersonOutlined'
 import Logout from '@mui/icons-material/Logout'
 import SettingsBrightnessOutlined from '@mui/icons-material/SettingsBrightnessOutlined'
 import { useNavigate } from 'react-router'
@@ -66,6 +67,10 @@ export default function AccountMenu() {
         </Box>
         <Divider />
 
+        <MenuItem onClick={() => { close(); navigate('/account/profile') }}>
+          <ListItemIcon><PersonOutlined fontSize="small" /></ListItemIcon>
+          <ListItemText>My profile</ListItemText>
+        </MenuItem>
         <MenuItem onClick={() => { close(); navigate('/account/password') }}>
           <ListItemIcon><LockResetOutlined fontSize="small" /></ListItemIcon>
           <ListItemText>Change password</ListItemText>
