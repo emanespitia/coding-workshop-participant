@@ -19,4 +19,5 @@ os.environ.update({
     "JWT_SECRET": "test-secret-key-that-is-long-enough-for-hs256",
     "ADMIN_BOOTSTRAP_EMAIL": "admin@acme.inc",
     "ADMIN_BOOTSTRAP_PASSWORD": "Bootstrap123",
+    "SEED_DEMO_DATA": "false",
 })

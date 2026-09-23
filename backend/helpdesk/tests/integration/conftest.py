@@ -1,6 +1,6 @@
 """
 Integration test fixtures: a real PostgreSQL database, reset before every test,
-and helpers to call the Lambda handler and create users.
+and helpers to call the API (in-process via FastAPI's TestClient) and create users.
 """
 
 import itertools
@@ -10,13 +10,14 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
-import function
 from app.core import config, db, security
 from app.core.constants import ROLE_ENGINEER
 from app.core.orm import Base
+from app.main import app
 from app.users import repository as users_repo
 from app.users.models import EngineerProfile
 
@@ -51,7 +52,8 @@ def database():
 def clean_tables(database):
     """Empty all tables and recreate the bootstrap admin before each test."""
     with db.session_scope() as session:
-        session.execute(text("TRUNCATE users RESTART IDENTITY CASCADE"))
+        tables = ", ".join(table.name for table in Base.metadata.sorted_tables)
+        session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
         db.ensure_bootstrap_admin(session)
     yield
 
@@ -62,6 +64,7 @@ class ApiResult:
 
     status: int
     body: Any
+    headers: Any = None
 
     @property
     def error_code(self) -> Optional[str]:
@@ -69,22 +72,21 @@ class ApiResult:
         return (self.body or {}).get("error", {}).get("code")
 
 
+_client = TestClient(app, raise_server_exceptions=False)
+
+
 def call_api(method: str, path: str, body: Any = None, token: Optional[str] = None,
-             query: Optional[dict] = None, raw_body: Optional[str] = None) -> ApiResult:
-    """Invoke the Lambda handler with a Function URL style event."""
-    headers = {"content-type": "application/json"}
+             query: Optional[dict] = None, raw_body: Optional[str] = None,
+             headers: Optional[dict] = None) -> ApiResult:
+    """Call the FastAPI app in-process and decode the JSON response."""
+    headers = {"content-type": "application/json", **(headers or {})}
     if token:
         headers["authorization"] = f"Bearer {token}"
-    event = {
-        "rawPath": path,
-        "headers": headers,
-        "queryStringParameters": query,
-        "requestContext": {"http": {"method": method, "path": path}},
-        "body": raw_body if raw_body is not None else (json.dumps(body) if body is not None else None),
-        "isBase64Encoded": False,
-    }
-    response = function.handler(event, None)
-    return ApiResult(response["statusCode"], json.loads(response["body"]) if response["body"] else None)
+    content = raw_body if raw_body is not None else (json.dumps(body) if body is not None else None)
+    response = _client.request(method, path, headers=headers, params=query, content=content)
+    is_json = response.headers.get("content-type", "").startswith("application/json")
+    body = response.json() if is_json and response.content else (response.text or None)
+    return ApiResult(response.status_code, body, response.headers)
 
 
 @pytest.fixture

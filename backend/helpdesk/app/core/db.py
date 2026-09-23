@@ -11,11 +11,14 @@ import logging
 from contextlib import contextmanager
 from typing import Iterator, Optional
 
+from psycopg.errors import ForeignKeyViolation, UniqueViolation
 from sqlalchemy import Engine, create_engine, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core import config, security
 from app.core.constants import ROLE_ADMIN
+from app.core.errors import ConflictError
 from app.core.orm import Base
 from app.models import User
 
@@ -65,6 +68,28 @@ def session_scope() -> Iterator[Session]:
         session.close()
 
 
+@contextmanager
+def integrity_guard(*, duplicate: Optional[ConflictError] = None,
+                    in_use: Optional[ConflictError] = None) -> Iterator[None]:
+    """
+    Translate database constraint violations raised inside the block into API errors.
+
+    Relying on the database (instead of "check, then write") is race-free.
+
+    Args:
+        duplicate: Raised for unique-constraint violations.
+        in_use: Raised for foreign-key violations (e.g. deleting a referenced row).
+    """
+    try:
+        yield
+    except IntegrityError as exc:
+        if duplicate is not None and isinstance(exc.orig, UniqueViolation):
+            raise duplicate from exc
+        if in_use is not None and isinstance(exc.orig, ForeignKeyViolation):
+            raise in_use from exc
+        raise
+
+
 def reset() -> None:
     """Drop all pooled connections so the next request reconnects."""
     global _engine, _session_factory  # pylint: disable=global-statement
@@ -75,7 +100,10 @@ def reset() -> None:
 
 
 def init_schema() -> None:
-    """Create any missing tables and make sure an admin account exists."""
+    """
+    Create any missing tables, add local demo data if enabled, and make sure
+    an admin account exists.
+    """
     global _initialized  # pylint: disable=global-statement
     engine = get_engine()
     with engine.begin() as conn:
@@ -85,6 +113,9 @@ def init_schema() -> None:
 
     with session_scope() as session:
         session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": _SCHEMA_LOCK_KEY})
+        if config.seed_demo_data():
+            from app import seed  # pylint: disable=import-outside-toplevel  (avoids an import cycle)
+            seed.run(session)
         ensure_bootstrap_admin(session)
 
 

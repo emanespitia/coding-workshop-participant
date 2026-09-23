@@ -11,7 +11,7 @@ from typing import Annotated, ClassVar, Optional
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 from app.core.constants import Availability, Category, Role
-from app.core.schemas import AcmeEmail, Name, PatchModel, StrictModel, UniqueList
+from app.core.schemas import AcmeEmail, Name, PatchModel, QueryModel, StrictModel, UniqueList
 
 NO_SPECIALTY_MESSAGE = "Choose at least one specialty for an engineer"
 
@@ -85,7 +85,7 @@ class EngineerSelfUpdate(SelfUserUpdate):
     engineer_profile: SelfProfileInput = None
 
 
-class UserListQuery(BaseModel):
+class UserListQuery(QueryModel):
     """Query string for GET /users. Values arrive as strings and are coerced."""
 
     q: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
@@ -93,8 +93,6 @@ class UserListQuery(BaseModel):
     is_active: Optional[bool] = None
     page: int = Field(1, ge=1, le=10_000)
     page_size: int = Field(25, ge=1, le=100)
-
-    model_config = ConfigDict(extra="ignore")
 
 
 # ---- Responses --------------------------------------------------------------

@@ -1,17 +1,58 @@
 # Helpdesk API
 
-Python Lambda service behind `/api/helpdesk/*` for the ACME facility incident platform.
+FastAPI service for the ACME facility incident platform. Runs locally with uvicorn and on
+AWS Lambda (via Mangum) behind CloudFront at `/api/helpdesk/*`.
+
+## Run locally
+
+```sh
+cd backend/helpdesk
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt     # once
+PGPASSWORD=postgres123 psql -h localhost -U postgres -c "CREATE DATABASE helpdesk_dev"   # once
+cp .env.sample .env.local                                                   # once (git-ignored)
+
+.venv/bin/uvicorn app.main:app --reload                                     # every time
+```
+
+Open http://localhost:8000/docs. Settings come from `.env.local`, which is loaded
+automatically when running locally (never on AWS). Stop the server with **Ctrl+C**.
+
+### Demo data
+
+With `SEED_DEMO_DATA=true` (the default in `.env.sample`) every start adds any missing demo
+data. All demo accounts use the password **`Password123`**:
+
+| Role | Accounts |
+| --- | --- |
+| Admin | `admin@acme.inc`, `morgan.facilities@acme.inc` |
+| Engineer | `sam.rivera@` (hvac, electrical), `priya.shah@` (network, it_hardware, av_equipment), `diego.martinez@` (plumbing, cleaning; busy), `lee.chen@` (security, access_control; off duty) |
+| Employee | `jane.doe@`, `john.smith@`, `maria.garcia@` |
+
+Buildings: **HQ Tower** (Basement, Ground, Floor 1, Floor 2), **Riverside Annex** (Ground, Floor 1),
+**Innovation Lab** (Ground), each floor with seats (e.g. `1A-01`).
+
+Seeding only adds what is missing; demo records you delete come back on the next start.
+To start over from a clean database:
+
+```sh
+.venv/bin/python -m app.seed --reset
+```
+
+Seeding refuses to run unless `IS_LOCAL=true`, and is never enabled on AWS Lambda.
 
 ## Layout
 
 ```
-function.py            Lambda entry point
-app/main.py            pipeline: route -> authenticate -> authorize -> handler (one DB session/transaction per request)
+function.py            Lambda entry point (Mangum wraps the FastAPI app)
+app/main.py            FastAPI app: routers, error handlers, /api/helpdesk prefix, CORS (local only)
 app/models.py          imports every ORM model (tables are created from these on cold start)
-app/core/              config, db (SQLAlchemy engine + sessions), orm (Base), errors, http, router,
-                       security (scrypt + JWT), schemas (Pydantic base types)
+app/core/              config, db (SQLAlchemy engine + sessions), deps (FastAPI dependencies:
+                       DbSession, CurrentUser, AdminUser), auth (token -> user), errors,
+                       security (scrypt + JWT), schemas (Pydantic base types), orm (Base)
 app/auth/              routes + schemas: register, login, refresh, me, change password
-app/users/             models (SQLAlchemy), schemas (Pydantic), routes (HTTP), service (rules), repository (queries)
+app/users/             models (SQLAlchemy), schemas (Pydantic), routes, service (rules), repository (queries)
+app/facilities/        buildings, floors, seats: models, schemas, routes, service
+app/seed.py            local demo data (users + facilities); python -m app.seed [--reset]
 tests/unit/            no database needed
 tests/integration/     run against a real PostgreSQL (database `helpdesk_test`)
 ```
@@ -29,7 +70,14 @@ tests/integration/     run against a real PostgreSQL (database `helpdesk_test`)
 | GET / PATCH | `/users/{id}` | admin, or self (limited fields) |
 | DELETE | `/users/{id}` | admin (not self, never the last admin) |
 | POST | `/users/{id}/reset-password` | admin |
+| GET / POST | `/buildings` | read: signed in · write: admin |
+| GET / PATCH / DELETE | `/buildings/{id}` | read: signed in · write: admin |
+| GET / POST | `/buildings/{id}/floors` | read: signed in · write: admin |
+| GET / PATCH / DELETE | `/floors/{id}` | read: signed in · write: admin |
+| GET / POST | `/floors/{id}/seats` | read: signed in · write: admin |
+| GET / PATCH / DELETE | `/seats/{id}` | read: signed in · write: admin |
 | GET | `/health` | public |
+| GET | `/docs`, `/openapi.json` | public (interactive API docs) |
 
 Errors always look like `{"error": {"code": "...", "message": "...", "fields": {...}}}`.
 

@@ -10,3 +10,4 @@
 !/pytest.ini
 !/.pylintrc
 !/README.md
+!/.env.sample

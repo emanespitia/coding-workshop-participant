@@ -14,6 +14,7 @@ from pydantic import (
     EmailStr,
     StringConstraints,
     field_validator,
+    model_validator,
 )
 
 from app.core import security
@@ -50,6 +51,22 @@ class PatchModel(StrictModel):
         if value is None and info.field_name not in cls.nullable_fields:
             raise ValueError("Cannot be null")
         return value
+
+
+class QueryModel(BaseModel):
+    """
+    Query-string model. Unknown parameters are ignored and empty values
+    (e.g. `?role=`) are treated as not provided.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_empty(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if v not in ("", None)}
+        return data
 
 
 def _strip(value: Any) -> Any:
@@ -100,12 +117,26 @@ def _field_path(loc: tuple) -> str:
     return ".".join(str(part) for part in loc if not isinstance(part, int)) or "body"
 
 
+def error_fields(errors: list[dict], *, strip_location: bool = False) -> dict[str, str]:
+    """
+    Convert Pydantic/FastAPI errors into {"field.path": "message"}.
+
+    Args:
+        errors: The `.errors()` list of a validation error.
+        strip_location: Drop FastAPI's leading "body"/"query"/"path" segment.
+    """
+    fields: dict[str, str] = {}
+    for error in errors:
+        loc = tuple(error["loc"])
+        if strip_location and loc and loc[0] in ("body", "query", "path", "header"):
+            loc = loc[1:]
+        fields.setdefault(_field_path(loc), _message(error))
+    return fields
+
+
 def parse(model: type[M], data: Any) -> M:
     """Validate data against a model, raising the API's 400 ValidationError on failure."""
     try:
         return model.model_validate(data)
     except pydantic.ValidationError as exc:
-        fields: dict[str, str] = {}
-        for error in exc.errors():
-            fields.setdefault(_field_path(error["loc"]), _message(error))
-        raise ValidationError(fields) from exc
+        raise ValidationError(error_fields(exc.errors())) from exc
