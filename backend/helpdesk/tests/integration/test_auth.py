@@ -214,9 +214,12 @@ class TestRouting:
         res = api("DELETE", "/auth/login")
         assert res.status == 405
 
-    def test_options_preflight(self, api):
-        res = api("OPTIONS", "/users")
-        assert res.status == 204
+    def test_cors_preflight_locally(self, api):
+        res = api("OPTIONS", "/users", headers={
+            "origin": "http://localhost:3000", "access-control-request-method": "GET",
+        })
+        assert res.status == 200
+        assert res.headers["access-control-allow-origin"] == "*"
 
     def test_health(self, api):
         assert api("GET", "/health").body == {"status": "ok"}

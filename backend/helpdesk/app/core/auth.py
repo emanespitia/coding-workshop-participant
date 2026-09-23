@@ -1,23 +1,14 @@
 """
-Request authentication and centralized role checks.
+Token validation: turns a JWT into the current user row.
+FastAPI dependencies built on this live in app.core.deps.
 """
 
 from sqlalchemy.orm import Session
 
 from app.core import security
-from app.core.errors import ForbiddenError, UnauthorizedError
-from app.core.http import Request
+from app.core.errors import UnauthorizedError
 from app.users import repository as users_repo
 from app.users.models import User
-
-
-def bearer_token(req: Request) -> str:
-    """Extract the bearer token from the Authorization header."""
-    header = req.headers.get("authorization", "")
-    scheme, _, token = header.partition(" ")
-    if scheme.lower() != "bearer" or not token.strip():
-        raise UnauthorizedError("Missing bearer token", code="MISSING_TOKEN")
-    return token.strip()
 
 
 def load_token_user(session: Session, token: str, token_type: str) -> User:
@@ -38,14 +29,3 @@ def load_token_user(session: Session, token: str, token_type: str) -> User:
     if not user.is_active:
         raise UnauthorizedError("Account is disabled", code="ACCOUNT_DISABLED")
     return user
-
-
-def authenticate(session: Session, req: Request) -> User:
-    """Authenticate the request with its access token."""
-    return load_token_user(session, bearer_token(req), "access")
-
-
-def require_role(user: User, *roles: str) -> None:
-    """Raise 403 unless the user has one of the given roles."""
-    if user.role not in roles:
-        raise ForbiddenError("You do not have permission to perform this action")

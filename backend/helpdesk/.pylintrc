@@ -1,3 +1,16 @@
+[MAIN]
+# Also lints tests/ when run as: pylint app tests function.py
+
+[FORMAT]
+max-line-length=120
+
+[DESIGN]
+# Service functions take the session, the acting user and a few keyword options.
+max-args=7
+max-positional-arguments=7
+
 [MESSAGES CONTROL]
 # not-callable: false positive on SQLAlchemy's dynamic func.* (func.now(), func.count()).
-disable=not-callable
+# too-few-public-methods: Pydantic models and ORM classes are data holders.
+disable=not-callable,
+        too-few-public-methods

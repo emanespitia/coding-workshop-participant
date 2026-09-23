@@ -23,12 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.constants import AVAILABILITY, ROLES
-from app.core.orm import Base
-
-
-def _in_list(column: str, values: tuple[str, ...]) -> str:
-    """SQL for a CHECK constraint restricting a column to fixed values."""
-    return f"{column} IN ({', '.join(repr(v) for v in values)})"
+from app.core.orm import Base, in_list
 
 
 class User(Base):
@@ -36,7 +31,7 @@ class User(Base):
 
     __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint(_in_list("role", ROLES), name="users_role_check"),
+        CheckConstraint(in_list("role", ROLES), name="users_role_check"),
         CheckConstraint("email = lower(email)", name="users_email_lowercase"),
         Index("users_role_idx", "role", postgresql_where=text("is_active")),
     )
@@ -73,7 +68,7 @@ class EngineerProfile(Base):
 
     __tablename__ = "engineer_profiles"
     __table_args__ = (
-        CheckConstraint(_in_list("availability", AVAILABILITY), name="engineer_profiles_availability_check"),
+        CheckConstraint(in_list("availability", AVAILABILITY), name="engineer_profiles_availability_check"),
         CheckConstraint("cardinality(specialties) >= 1", name="engineer_profiles_specialties_required"),
     )
     __mapper_args__ = {"eager_defaults": True}
