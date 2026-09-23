@@ -50,12 +50,13 @@ To start over from a clean database:
 .venv/bin/python -m app.seed --reset
 ```
 
-Seeding refuses to run unless `IS_LOCAL=true`, and is never enabled on AWS Lambda.
+Automatic seeding only runs locally (`IS_LOCAL=true`), never on AWS Lambda. To load the demo
+data into the cloud, see [Demo data on AWS](#demo-data-on-aws).
 
 ## Layout
 
 ```
-function.py            Lambda entry point (Mangum wraps the FastAPI app)
+function.py            Lambda entry point: HTTP events → FastAPI (Mangum); {"task": …} → app/tasks.py
 app/main.py            FastAPI app: routers, error handlers, /api/helpdesk prefix, CORS (local only)
 app/models.py          imports every ORM model (tables are created from these on cold start)
 app/core/              config, db (SQLAlchemy engine + sessions), deps (FastAPI dependencies:
@@ -67,7 +68,8 @@ app/facilities/        buildings, floors, seats: models, schemas, routes, servic
 app/incidents/         models, schemas, workflow (status rules + permissions, no DB), service
                        (lifecycle), notes, assignments (engineer requests), routes, assignment_routes
 app/reports/           dashboard summary: SQL aggregates scoped by role
-app/seed.py            local demo data (users, facilities, incidents); python -m app.seed [--reset]
+app/seed.py            demo data (users, facilities, incidents); python -m app.seed [--reset]
+app/tasks.py           operator tasks run by invoking the Lambda directly (seed_demo_data)
 tests/unit/            no database needed
 tests/integration/     run against a real PostgreSQL (database `helpdesk_test`)
 ```
@@ -160,6 +162,29 @@ On first start the service creates `admin@acme.inc` with the password from
 ```sh
 cd infra && terraform output -raw admin_bootstrap_password
 ```
+
+## Demo data on AWS
+
+The cloud database starts empty apart from `admin@acme.inc`. To load the demo buildings,
+users and incidents, invoke the Lambda directly with the `seed_demo_data` task (after
+`./bin/deploy-backend.sh`):
+
+```sh
+source ENVIRONMENT.config && export AWS_REGION=us-east-1     # from the repo root
+aws lambda invoke --function-name coding-workshop-helpdesk-$PARTICIPANT_ID \
+    --cli-binary-format raw-in-base64-out \
+    --payload '{"task": "seed_demo_data"}' /tmp/seed-result.json && cat /tmp/seed-result.json
+```
+
+- New demo accounts get a **random password**, returned once in `/tmp/seed-result.json`
+  (`demo_password`) and never logged. To choose it, add `"password": "YourPass123"`
+  to the payload (it must follow the password rules).
+- It only adds what is missing, so running it again is safe; existing accounts keep their
+  passwords. `admin@acme.inc` keeps its bootstrap password (see [First admin](#first-admin)).
+- Only someone with AWS permission to invoke the function can run it: requests through
+  CloudFront or the Function URL are HTTP events and always go to the API
+  ([function.py](function.py), [app/tasks.py](app/tasks.py)).
+- The result file is written outside the repo (it contains the password); delete it when done.
 
 ## Tests
 

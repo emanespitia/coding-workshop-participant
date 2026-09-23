@@ -3,7 +3,7 @@
 import pytest
 from sqlalchemy import func, select
 
-from app import seed
+from app import seed, tasks
 from app.core import config, db
 from app.facilities.models import Building, Floor, Seat
 from app.core.constants import CATEGORIES, EVENT_TYPES, REQUEST_STATUSES
@@ -119,3 +119,36 @@ def test_demo_data_covers_every_section(api):
     assert api("POST", "/auth/login", {"email": "chris.taylor@acme.inc", "password": seed.DEMO_PASSWORD}).status == 403
     nina = api("POST", "/auth/login", {"email": "nina.patel@acme.inc", "password": seed.DEMO_PASSWORD})
     assert nina.status == 200 and nina.body["user"]["must_change_password"] is True
+
+
+def test_seed_task_uses_a_random_password_by_default(api, caplog):
+    result = tasks.run_task({"task": "seed_demo_data"})
+    assert result["ok"] is True
+    assert result["created"]["incidents"] == len(seed.INCIDENTS)
+    password = result["demo_password"]
+    assert password != seed.DEMO_PASSWORD
+    assert "morgan.facilities@acme.inc" in result["demo_accounts"]
+    assert password not in caplog.text  # never logged
+
+    signed_in = api("POST", "/auth/login", {"email": "morgan.facilities@acme.inc", "password": password})
+    assert signed_in.status == 200
+    old = api("POST", "/auth/login", {"email": "morgan.facilities@acme.inc", "password": seed.DEMO_PASSWORD})
+    assert old.status == 401
+
+    again = tasks.run_task({"task": "seed_demo_data"})
+    assert again["ok"] is True and again["created"] == {"users": 0, "places": 0, "incidents": 0}
+    assert "demo_password" not in again
+
+
+def test_seed_task_accepts_a_chosen_password(api):
+    result = tasks.run_task({"task": "seed_demo_data", "password": "Workshop2026"})
+    assert result["ok"] is True and result["demo_password"] == "Workshop2026"
+    assert api("POST", "/auth/login", {"email": "priya.shah@acme.inc", "password": "Workshop2026"}).status == 200
+
+
+def test_seed_task_runs_through_the_lambda_handler(api):
+    import function  # pylint: disable=import-outside-toplevel
+
+    result = function.handler({"task": "seed_demo_data", "password": "Workshop2026"}, None)
+    assert result["ok"] is True
+    assert result["created"]["users"] == len(seed.USERS) - 1  # admin@acme.inc already exists
