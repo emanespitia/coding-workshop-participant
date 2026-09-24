@@ -59,8 +59,22 @@ export async function reportIncident(page, { title, details, category, urgency, 
   if (floor) await choose(page, 'Floor', floor)
   if (seat) await choose(page, 'Seat or desk', seat)
   await page.getByRole('button', { name: 'Report incident' }).click()
-  await expect(page.getByRole('heading', { name: title })).toBeVisible()
+  await reportPastDuplicateWarning(page, title)
   return Number(page.url().match(/\/incidents\/(\d+)/)[1])
+}
+
+/**
+ * After clicking "Report incident": if similar incidents exist (common with demo data and
+ * earlier test runs), say it's different and report it anyway; then wait for the new incident.
+ */
+export async function reportPastDuplicateWarning(page, title) {
+  const heading = page.getByRole('heading', { name: title })
+  const warning = page.getByRole('dialog', { name: 'This may already be reported' })
+  await expect(heading.or(warning)).toBeVisible()
+  if (await warning.isVisible()) {
+    await warning.getByRole('button', { name: 'Mine is different, report it' }).click()
+  }
+  await expect(heading).toBeVisible()
 }
 
 /** The status chips at the top of an incident page. */

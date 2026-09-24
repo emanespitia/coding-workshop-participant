@@ -94,10 +94,13 @@ tests/integration/     run against a real PostgreSQL (database `helpdesk_test`)
 | GET / PATCH / DELETE | `/floors/{id}` | read: signed in · write: admin |
 | GET / POST | `/floors/{id}/seats` | read: signed in · write: admin |
 | GET / PATCH / DELETE | `/seats/{id}` | read: signed in · write: admin |
-| GET / POST | `/incidents` | signed in (list is limited to what you may see) |
+| GET / POST | `/incidents` | signed in (list is limited to what you may see; `?possible_duplicate=true` for flagged ones) |
+| GET | `/incidents/similar?building_id=&category=&floor_id=&seat_id=&title=` | signed in: active incidents from the last 30 days that may be the same problem (title, category, status, location and date only) |
 | GET / PATCH / DELETE | `/incidents/{id}` | view: who can see it · edit: reporter while open, admin · delete: admin |
 | POST | `/incidents/{id}/status` | per workflow rules (see below) |
 | POST | `/incidents/{id}/assign` | admin |
+| POST | `/incidents/{id}/close-as-duplicate` | admin (`{"duplicate_of_id": 12}`) |
+| DELETE | `/incidents/{id}/possible-duplicate` | admin (clears the "possible duplicate" flag) |
 | POST / DELETE | `/incidents/{id}/escalate`, `/incidents/{id}/escalation` | reporter or admin / admin |
 | GET | `/incidents/{id}/events` | who can see it |
 | GET / POST | `/incidents/{id}/notes` | read: who can see it · write: reporter, assignee, admin |
@@ -124,6 +127,11 @@ Errors always look like `{"error": {"code": "...", "message": "...", "fields": {
 | resolved → closed | admin | |
 | resolved → in_progress | admin (reopen) | reason |
 | in_progress / blocked → closed | admin | reason |
+
+Duplicates: before reporting, the app asks `/incidents/similar` (same building and category,
+still active, last 30 days; ranked by floor, seat and shared title words) and warns the user.
+If they report anyway, the new incident is flagged `possible_duplicate_of` for admins, who can
+close it as a duplicate (it links to the original) or clear the flag.
 
 Visibility: employees see incidents they reported; engineers see their assigned work and the
 open, unassigned pool; admins see everything. Incident details include `allowed_transitions`
@@ -153,7 +161,9 @@ role doesn't get are `null`.
 SQLAlchemy 2.0 ORM over psycopg 3. Tables, constraints and indexes are defined on the
 models and created with `Base.metadata.create_all()` on the first request of each Lambda
 container (guarded by a PostgreSQL advisory lock). `create_all` only creates *missing*
-tables; changing an existing table needs a manual `ALTER TABLE` (no migration tool yet).
+tables, so columns added later are listed in `_COLUMN_UPGRADES` in
+[app/core/db.py](app/core/db.py) and added with idempotent `ALTER TABLE … ADD COLUMN IF NOT EXISTS`
+on start (no migration tool yet).
 
 ## First admin
 

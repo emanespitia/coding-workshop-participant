@@ -100,16 +100,30 @@ def reset() -> None:
     _session_factory = None
 
 
+# Columns added after the first release. create_all() only creates missing *tables*, so
+# databases created earlier (e.g. the deployed one) get new columns here. Every statement is
+# idempotent and runs under the same advisory lock. A migration tool (e.g. Alembic) should
+# replace this list if it grows.
+_COLUMN_UPGRADES = (
+    "ALTER TABLE incidents ADD COLUMN IF NOT EXISTS possible_duplicate_of_id BIGINT"
+    " REFERENCES incidents(id) ON DELETE SET NULL",
+    "ALTER TABLE incidents ADD COLUMN IF NOT EXISTS duplicate_of_id BIGINT"
+    " REFERENCES incidents(id) ON DELETE SET NULL",
+)
+
+
 def init_schema() -> None:
     """
-    Create any missing tables, add local demo data if enabled, and make sure
-    an admin account exists.
+    Create any missing tables (and add newer columns to existing ones), add local demo data if
+    enabled, and make sure an admin account exists.
     """
     global _initialized  # pylint: disable=global-statement
     engine = get_engine()
     with engine.begin() as conn:
         conn.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": _SCHEMA_LOCK_KEY})
         Base.metadata.create_all(conn)
+        for statement in _COLUMN_UPGRADES:
+            conn.execute(text(statement))
     _initialized = True
 
     with session_scope() as session:

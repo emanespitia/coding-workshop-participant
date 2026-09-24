@@ -148,6 +148,11 @@ def allowed_actions(user: Any, incident: Any) -> list[str]:
         "deescalate": is_admin and incident.is_escalated and incident.status != STATUS_CLOSED,
         "add_note": is_participant(user, incident) and incident.status != STATUS_CLOSED,
         "request_assignment": can_request_assignment(user, incident),
+        "close_as_duplicate": is_admin and incident.status != STATUS_CLOSED,
+        "dismiss_possible_duplicate": (
+            is_admin and incident.status != STATUS_CLOSED
+            and getattr(incident, "possible_duplicate_of_id", None) is not None
+        ),
         "delete": is_admin,
     }
     return [action for action, allowed in checks.items() if allowed]

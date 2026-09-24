@@ -36,8 +36,8 @@ const SORTS = {
 // to what they reported and shows admins everything.
 const ROLE_SCOPE = { engineer: 'assigned' }
 
-// Quick filters for the admin's full list, kept in the URL as ?escalated=1 / ?unassigned=1.
-const ADMIN_QUICK_FILTERS = { escalated: 'Escalated', unassigned: 'Unassigned' }
+// Quick filters for the admin's full list, kept in the URL as ?escalated=1 / ?unassigned=1 etc.
+const ADMIN_QUICK_FILTERS = { escalated: 'Escalated', unassigned: 'Unassigned', possible_duplicate: 'Possible duplicates' }
 
 function buildQuery({ q, status, sort, page, quick, building, floor }, scope) {
   const params = new URLSearchParams({ sort, page: String(page), page_size: String(PAGE_SIZE) })
@@ -271,7 +271,7 @@ export default function IncidentListPage({ mine = false }) {
               {data.total === 1 ? '1 incident' : `${data.total} incidents`}
             </Typography>
           )}
-          <IncidentCollection items={data.items} />
+          <IncidentCollection items={data.items} showDuplicateFlag={isAdmin} />
           {totalPages > 1 && (
             <Box sx={{ display: 'flex', justifyContent: 'center' }}>
               <Pagination

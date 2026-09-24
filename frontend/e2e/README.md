@@ -21,6 +21,7 @@ touched. It needs the backend's `.venv` and the local PostgreSQL (see the root d
 | [lifecycle.spec.js](lifecycle.spec.js) | Employee reports (building → floor → seat) → admin assigns the matching engineer → engineer starts, posts a note, resolves → admin closes → employee sees the outcome and full history · engineer requests an incident → admin approves → it's in their work · admin filters by building and floor with the live count |
 | [accounts.spec.js](accounts.spec.js) | Registration (including the @acme.inc rule) · forced password change for a new hire (old password stops working) · wrong password and disabled account messages · session survives a reload; sign-out ends it |
 | [access.spec.js](access.spec.js) | Employees only see their pages, and the **API** refuses admin endpoints (403) · someone else's incident reads as not found · each role's dashboard · admin overview numbers and charts · a deep link survives a reload |
+| [duplicates.spec.js](duplicates.spec.js) | A second person reporting the same radiator is warned (only safe details shown), reports anyway; the admin sees the flag and closes it as a duplicate; the reporter is told where it's handled |
 | [phone.spec.js](phone.spec.js) | On a phone-sized screen: menu navigation, reporting an incident, cards instead of tables |
 
 ## Against the deployed site
@@ -39,7 +40,7 @@ E2E_BASE_URL=https://dieilg51k5yf9.cloudfront.net E2E_PASSWORD='<demo password>'
   registered account `e2e.…@acme.inc`. Admins can find them by searching `[e2e]` and delete or
   deactivate them.
 - Tests tagged **`@local-only`** are skipped, because they can only succeed once per database
-  (the new hire's forced password change permanently changes Nina's password). 15 of the 16
+  (the new hire's forced password change permanently changes Nina's password). 16 of the 17
   journeys run.
 
 Tests run one at a time because they share the database. Shared steps (sign in, report an

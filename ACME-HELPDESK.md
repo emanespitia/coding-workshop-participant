@@ -8,8 +8,9 @@ a full history along the way.
 - **Live:** https://dieilg51k5yf9.cloudfront.net (AWS: CloudFront + Lambda + Aurora PostgreSQL)
 - **Stack:** React 19 + Material UI 9 + React Responsive · Python 3.13 FastAPI on AWS Lambda ·
   PostgreSQL (Aurora Serverless v2)
-- **Status:** every feature in the brief is implemented for all three roles; 260 backend tests
-  (98% coverage), 175 frontend tests (93% coverage) and 16 end-to-end browser journeys pass. See
+- **Status:** every feature in the brief is implemented for all three roles. 276 backend tests
+  (98% coverage), 185 frontend tests (93% coverage) and 17 end-to-end browser journeys pass, and
+  the deployed site passed a load test (~10,000 requests, 0 errors). See
   [Known gaps](#known-gaps-and-next-steps).
 
 > This file documents the project built on top of the workshop template. The template's own
@@ -35,7 +36,7 @@ a full history along the way.
 | --- | --- | --- | --- |
 | **Sign up / sign in** | Register with an `@acme.inc` email | Account created by an admin | Account created by an admin |
 | **Dashboard** | Their incidents at a glance, what needs attention, how quickly the team replies | Their workload, incidents matching their specialties, their requests, their pace | Headline numbers, needs attention, response times, daily trend and category charts, engineer workload, problem hotspots by building / floor / seat |
-| **Incidents** | Report, track, edit while Open, cancel with a reason, escalate, add notes | Report; request to take open incidents (admin approves); start, block, resolve; notes; "My work", "Available" and "My reports" lists | Everything: assign / reassign / unassign, set priority, remove escalation, reopen, close, delete; filter by building and floor with a live count |
+| **Incidents** | Report (warned first if something similar is already open), track, edit while Open, cancel with a reason, escalate, add notes | Report (suggesting a priority); request to take open incidents (admin approves); start, block, resolve; notes; "My work", "Available" and "My reports" lists | Report (setting the priority); assign / reassign / unassign, change priority, remove escalation, reopen, close, delete; filter by building and floor with a live count, plus Escalated / Unassigned / Possible duplicates quick filters; close as duplicate; "My reports" |
 | **Admin** | | | Approve or turn down engineers' requests; manage buildings, floors and seats; manage users, roles, engineer specialties and availability; reset passwords |
 | **Account** | Profile, change password, light / dark theme | + availability (Available / Busy / Off duty) and phone | Same as employee |
 
@@ -69,14 +70,18 @@ flowchart LR
   adapts it to Lambda with Mangum. Interactive API docs at `/api/helpdesk/docs`.
 - **Frontend** ([frontend](frontend)): React Router pages grouped by feature (`auth`,
   `incidents`, `dashboard`, `requests`, `facilities`, `users`, `account`), a small `api.js`
-  client (tokens, error envelope, silent token refresh), and shared components. All colors come
-  from design tokens ([frontend/DESIGN.md](frontend/DESIGN.md)); a test fails if a component
-  hardcodes one.
+  client (tokens, error envelope, silent token refresh), and shared components. If the API
+  can't be reached while restoring a session (offline, or the database waking up), you stay
+  signed in and get a "Try again" screen instead of being signed out. Admin pages and charts
+  load on demand. All colors come from design tokens ([frontend/DESIGN.md](frontend/DESIGN.md));
+  a test fails if a component hardcodes one.
 - **Infrastructure** ([infra](infra)): the workshop's Terraform, with a few small, deliberate
   changes listed in [Changes to the workshop template](#changes-to-the-workshop-template).
 
-More detail: [backend README](backend/helpdesk/README.md) (endpoints, workflow rules, reports),
-[frontend README](frontend/README.md) (layout, scripts), [design system](frontend/DESIGN.md).
+More detail: [backend README](backend/helpdesk/README.md) (endpoints, workflow rules, reports,
+cloud demo data), [frontend README](frontend/README.md) (layout, scripts),
+[design system](frontend/DESIGN.md), [end-to-end tests](frontend/e2e/README.md),
+[load test](loadtest/README.md).
 
 ## Data model and incident workflow
 
@@ -98,6 +103,11 @@ erDiagram
   `closed_at`) for response-time reporting, and every change is appended to `incident_events`.
 - Deleting a building, floor, seat or user that an incident refers to is refused (409);
   users with history are deactivated instead.
+- **Duplicates:** before an incident is saved, the app looks for similar active incidents from
+  the last 30 days (same building and category, ranked by floor, seat and shared title words)
+  and warns the reporter, showing only title, location, category, status and age. Reported
+  anyway, the incident is flagged `possible_duplicate_of`; admins close it as a duplicate
+  (`duplicate_of`, which the reporter sees) or clear the flag.
 
 ```mermaid
 stateDiagram-v2
@@ -175,11 +185,11 @@ local database, then reloads the demo data).
 
 | | Command | Result |
 | --- | --- | --- |
-| Backend unit + integration | `cd backend/helpdesk && .venv/bin/pytest --cov=app` | 260 passed, 98% line coverage |
+| Backend unit + integration | `cd backend/helpdesk && .venv/bin/pytest --cov=app` | 276 passed, 98% line coverage |
 | Backend lint | `.venv/bin/python -m pylint app function.py` | 10.00 / 10 |
-| Frontend components + API client | `cd frontend && npm test` | 175 passed |
-| Frontend coverage | `npm run test:coverage` | 93.1% lines · 91.3% statements · 91.6% functions · 83.2% branches (fails below 80%) |
-| End-to-end (real browser, API and database) | `cd frontend && npm run test:e2e` | 16 passed (desktop + phone) |
+| Frontend components + API client | `cd frontend && npm test` | 185 passed |
+| Frontend coverage | `npm run test:coverage` | 93.2% lines · 91.5% statements · 91.7% functions · 83.3% branches (fails below 80%) |
+| End-to-end (real browser, API and database) | `cd frontend && npm run test:e2e` (once: `npx playwright install chromium`) | 17 passed locally (desktop + phone); 15 of 15 against the deployed site before the duplicates feature |
 | Load test (Artillery) | `cd loadtest && npm run load -- --target <site>` | Deployed site: 9,884 requests, 0 failed, p95 495 ms, p99 934 ms |
 | Frontend lint / build | `npm run lint` · `npm run build` | clean |
 
@@ -199,11 +209,12 @@ that no component hardcodes a color.
 **End-to-end.** Playwright drives Chromium through the critical journeys against the real API
 and PostgreSQL (its own `helpdesk_e2e` database, reset with demo data on every run): the full
 incident lifecycle across all three roles (report → assign → start → note → resolve → close →
-reporter sees the outcome), an engineer's request and the admin's approval, registration, the
+reporter sees the outcome), an engineer's request and the admin's approval, a duplicate report
+flagged and closed as a duplicate, registration, the
 forced password change, sign-in errors, sessions surviving reloads, role-based access checked
 in the UI **and** at the API (403s), building / floor filtering with the live count, and
 reporting from a phone. The same suite can run against the **deployed site**
-(`E2E_BASE_URL=… E2E_PASSWORD=… npm run test:e2e`; 15 of 16 journeys, skipping one that can only
+(`E2E_BASE_URL=… E2E_PASSWORD=… npm run test:e2e`; 16 of 17 journeys, skipping one that can only
 succeed once). Details: [frontend/e2e/README.md](frontend/e2e/README.md).
 
 **Manual validation on AWS** (after each deploy): health check through CloudFront, a real 404
@@ -221,9 +232,9 @@ median 155 ms, p95 495 ms, p99 934 ms, peaking at ~48 requests/s. Lambda memory 
 121 MB, and the only slow requests were cold starts and the first request while the idle
 database resumed ([details](loadtest/README.md#results)).
 
-**Known testing gaps:** none of the planned test types are missing. `src/main.jsx` (the two lines that mount the app) is excluded
-from coverage; everything else in `frontend/src` is measured. See
-[Known gaps](#known-gaps-and-next-steps).
+**Known testing gaps:** none of the planned test types are missing. Frontend coverage leaves
+out only `src/main.jsx` (the two lines that mount the app); the e2e suite skips one journey
+against the deployed site because it permanently changes a demo account's password.
 
 ## Deploy to AWS
 
@@ -270,20 +281,22 @@ The demo accounts get a random password, returned once in the result and never l
 | Decision | Why | Trade-off |
 | --- | --- | --- |
 | **One FastAPI service** on Lambda (Mangum), not one Lambda per resource | Shared auth, validation, errors and transactions; free OpenAPI docs; runs unchanged under uvicorn locally | One larger package and a heavier cold start |
-| **SQLAlchemy ORM + Pydantic** | Constraints, indexes and relationships defined once in the models; validation and response shapes in one place | Tables are created with `create_all` on cold start; **no migration tool yet**, so changing an existing table needs a manual `ALTER` |
+| **SQLAlchemy ORM + Pydantic** | Constraints, indexes and relationships defined once in the models; validation and response shapes in one place | Tables are created with `create_all` on cold start; **no migration tool yet**: columns added later (the duplicate links) are applied by an idempotent `ADD COLUMN IF NOT EXISTS` list at start-up |
 | **Aurora PostgreSQL from the template** | Already provisioned, reachable inside the VPC, scales to zero when idle | The first request after an idle period waits ~15 s while Aurora resumes |
 | **Engineers request, admins approve** assignments | Matches the brief: admins stay in control of who works on what | An extra step before work starts; engineers see pending and decided requests |
 | **"Engineer resolves = done"**; only admins close or reopen resolved incidents | Admins confirm the outcome; reporters can still add notes or escalate | Reporters can't reopen directly; they ask via a note or escalation |
 | **CloudFront Function for page URLs** (a template change) | The template's site-wide 404 → `index.html` rule also rewrote the API's JSON 404s into a fake "200 OK" page, and reloading `/incidents/12` showed S3's "Access Denied" | A small change to `infra/cloudfront.tf`; page URLs must not contain a dot |
 | **Demo data via a direct Lambda invoke** (`seed_demo_data`) | The database isn't reachable from outside the VPC; only someone with AWS permissions can run it, and the password is random by default | A manual command after the first deploy |
-| **Lambda stays at the template's 128 MB** | Keep the template as is | Slower cold starts (~3 s to load, 6–8 s for the first request). The Lambda sits at ~110 MB, and near 128 MB requests slowed to ~15 s: password hashing (scrypt, ~16 MB) left that memory held after each sign-in. [app/core/memory.py](backend/helpdesk/app/core/memory.py) makes the allocator hand large blocks back (measured: 16 MB returned, same security); admin pages and charts load on demand to keep the browser download small |
+| **Lambda stays at the template's 128 MB** | Keep the template as is | Slower cold starts (~3 s to load, 6–8 s for the first request). The Lambda sits at ~110 MB, and near 128 MB requests slowed to ~15 s: password hashing (scrypt, ~16 MB) left that memory held after each sign-in. [app/core/memory.py](backend/helpdesk/app/core/memory.py) makes the allocator hand large blocks back (measured: 16 MB returned, same security); under the load test memory peaked at 121 MB and p95 stayed at 495 ms |
 | **Tokens in `localStorage`** with silent refresh | Simple, works with the single-origin setup and survives reloads | Readable by any script on the page if an XSS bug existed; mitigated by React's escaping and no third-party scripts. An httpOnly cookie would be the next step |
+| **Warn about duplicates, don't block** | A similar-looking report can still be a different problem; the reporter decides, and admins confirm with "close as duplicate" | Others' incidents show title, location, category, status and age to anyone reporting (never who reported them or their description); matching is by building, category, floor, seat and title words, not fuzzy text |
 | **Charts only where they help** (`@mui/x-charts`): daily trend and categories, each with a table view | Most dashboard data reads better as numbers, tables and ranked lists; chart colors pass color-blind and contrast checks in both themes | The chart library is ~110 kB gzipped (loaded only for admins) |
 
 ## Changes to the workshop template
 
-Everything else lives in our own folders (`backend/helpdesk`, `frontend/src`, docs). These are
-the only edits to the template's files, kept small on purpose:
+Our code lives in `backend/helpdesk`, `frontend` (the Vite starter app was replaced),
+`loadtest` and this file. These are the only edits to the template's own files, kept small on
+purpose:
 
 | File | Change | Why |
 | --- | --- | --- |
@@ -291,7 +304,7 @@ the only edits to the template's files, kept small on purpose:
 | `infra/main.tf`, `infra/locals.tf`, `infra/output.tf` | Generated `JWT_SECRET` and first-admin password, passed to the Lambda; the admin password is a sensitive Terraform output | No secrets in code; a known first admin on a fresh deploy |
 | `infra/locals.tf` | Python packages exclude `tests/` and `requirements-dev.txt` | Smaller Lambda package with no test code |
 | `bin/proxy-server.js` | Forwards the `Authorization` header | The template's local proxy dropped bearer tokens |
-| `frontend/eslint.config.js` | Node globals for `*.config.js`; React plugins added to `package.json` | The starter config imported plugins it didn't install |
+| `frontend/eslint.config.js` | React plugins added to `package.json`; Node globals for config files and Playwright tests; generated reports ignored | The starter config imported plugins it didn't install |
 
 ## Assumptions
 
@@ -308,9 +321,15 @@ the only edits to the template's files, kept small on purpose:
 
 ## Known gaps and next steps
 
-- **Database migrations** (for example Alembic) before the schema changes again.
-- **Performance at 128 MB:** measure cold start and sign-in from the Lambda logs; if needed,
-  warm the Lambda and database when the sign-in page opens, and import rarely used modules lazily.
+- **Database migrations** (for example Alembic) to replace the small start-up column list.
+- **"I'm affected too":** let people who find their problem already reported follow the
+  original incident (currently they're told it's known, but can't open someone else's report).
+- **First request after a quiet spell:** a new Lambda copy takes ~3 s to load (6–8 s for its
+  first request), and the first request after Aurora has paused can take ~15 s. Warming the API
+  when the sign-in page opens would hide most of this; raising the Lambda memory would shorten
+  cold starts.
 - **Live updates:** lists and dashboards refresh when you act or reload, not in real time.
 - **Hardening for production:** rate limiting on sign-in, httpOnly cookies for tokens, a
   custom domain and certificate, and notifications (email / chat) for assignments and updates.
+- **Stretch ideas from the workshop guide, not built:** installable app (PWA) support and AI
+  suggestions (for example category and priority from the description).

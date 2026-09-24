@@ -60,7 +60,9 @@ export default function IncidentForm({ initial = EMPTY, priority = 'suggest', su
 
     setSubmitting(true)
     try {
+      // Usually navigates away; if it returns (e.g. "Back to editing"), the form is usable again.
       await onSubmit(toPayload(values, Boolean(priority)))
+      setSubmitting(false)
     } catch (error) {
       setErrors(error.fields || {})
       setFormError(error.fields && Object.keys(error.fields).length ? 'Check the highlighted fields.' : error.message)

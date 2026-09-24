@@ -9,7 +9,7 @@ import { CATEGORY_LABELS } from '../../constants/incidents'
 import { useBreakpoints } from '../../hooks/useBreakpoints'
 import { formatLocation, timeAgo } from '../../utils/format'
 
-function IncidentTable({ items, action }) {
+function IncidentTable({ items, action, showDuplicateFlag }) {
   const navigate = useNavigate()
   return (
     <TableContainer component={Paper} variant="outlined">
@@ -45,6 +45,7 @@ function IncidentTable({ items, action }) {
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                   #{incident.id} · {CATEGORY_LABELS[incident.category] ?? incident.category}
                   {incident.is_escalated && ' · Escalated'}
+                  {showDuplicateFlag && flagged(incident) && ' · Possible duplicate'}
                 </Typography>
               </TableCell>
               <TableCell sx={{ color: 'text.secondary' }}>{formatLocation(incident)}</TableCell>
@@ -64,7 +65,7 @@ function IncidentTable({ items, action }) {
   )
 }
 
-function IncidentCards({ items, action }) {
+function IncidentCards({ items, action, showDuplicateFlag }) {
   return (
     <Stack component="ul" spacing={1.5} aria-label="Incidents" sx={{ m: 0, p: 0, listStyle: 'none' }}>
       {items.map((incident) => (
@@ -79,6 +80,7 @@ function IncidentCards({ items, action }) {
               <StatusChip status={incident.status} />
               <PriorityChip priority={incident.priority} />
               {incident.is_escalated && <Chip size="small" label="Escalated" color="warning" variant="outlined" />}
+              {showDuplicateFlag && flagged(incident) && <Chip size="small" label="Possible duplicate" variant="outlined" />}
             </Stack>
             <Link
               component={RouterLink}
@@ -104,11 +106,16 @@ function IncidentCards({ items, action }) {
   )
 }
 
+// Flagged as possibly the same problem as an earlier incident (admins review these).
+const flagged = (incident) => incident.possible_duplicate_of_id && incident.status !== 'closed'
+
 /**
  * A list of incidents: a table on desktop, cards on smaller screens.
- * `action(incident)` adds a control (e.g. a button) to each row or card.
+ * `action(incident)` adds a control (e.g. a button) to each row or card;
+ * `showDuplicateFlag` marks possible duplicates (for admins).
  */
-export default function IncidentCollection({ items, action }) {
+export default function IncidentCollection({ items, action, showDuplicateFlag = false }) {
   const { isDesktop } = useBreakpoints()
-  return isDesktop ? <IncidentTable items={items} action={action} /> : <IncidentCards items={items} action={action} />
+  const props = { items, action, showDuplicateFlag }
+  return isDesktop ? <IncidentTable {...props} /> : <IncidentCards {...props} />
 }

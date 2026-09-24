@@ -92,6 +92,12 @@ class NoteInput(StrictModel):
     body: NoteBody
 
 
+class DuplicateInput(StrictModel):
+    """POST /incidents/{id}/close-as-duplicate."""
+
+    duplicate_of_id: Id
+
+
 class AssignmentRequestCreate(StrictModel):
     """POST /incidents/{id}/assignment-requests."""
 
@@ -123,9 +129,21 @@ class IncidentListQuery(QueryModel):
     reporter_id: Optional[Id] = None
     escalated: Optional[bool] = None
     unassigned: Optional[bool] = None
+    possible_duplicate: Optional[bool] = Field(
+        None, description="Flagged as possibly the same problem as an earlier incident")
     sort: SortOption = "-created_at"
     page: int = Field(1, ge=1, le=10_000)
     page_size: int = Field(25, ge=1, le=100)
+
+
+class SimilarQuery(QueryModel):
+    """Query string for GET /incidents/similar (the duplicate check before reporting)."""
+
+    building_id: Id
+    category: Category
+    floor_id: Optional[Id] = None
+    seat_id: Optional[Id] = None
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None
 
 
 class AssignmentRequestQuery(QueryModel):
@@ -188,6 +206,37 @@ class IncidentSummary(_FromORM):
     assignee: Optional[UserSummary] = None
     created_at: datetime
     updated_at: datetime
+    possible_duplicate_of_id: Optional[int] = None
+
+
+class DuplicateRef(_FromORM):
+    """The incident another one duplicates (or may duplicate)."""
+
+    id: int
+    title: str
+    status: Status
+
+
+class SimilarIncident(_FromORM):
+    """
+    An incident that may be the same problem. Deliberately limited to what anyone reporting
+    may see: no reporter, description, notes or engineer.
+    """
+
+    id: int
+    title: str
+    category: Category
+    status: Status
+    building: BuildingRef
+    floor: Optional[FloorRef] = None
+    seat: Optional[SeatRef] = None
+    created_at: datetime
+
+
+class SimilarListResponse(BaseModel):
+    """Possible duplicates, best match first."""
+
+    items: list[SimilarIncident]
 
 
 class RequestRef(_FromORM):
@@ -215,6 +264,9 @@ class IncidentDetail(IncidentSummary):
     allowed_actions: list[str] = Field(description="Other actions available to you")
     my_assignment_request: Optional[RequestRef] = Field(
         None, description="Engineers: your latest request for this incident")
+    possible_duplicate_of: Optional[DuplicateRef] = Field(
+        None, description="A similar active incident that existed when this one was reported")
+    duplicate_of: Optional[DuplicateRef] = Field(None, description="Set when closed as a duplicate")
 
 
 class IncidentResponse(BaseModel):

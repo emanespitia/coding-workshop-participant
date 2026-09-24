@@ -32,7 +32,19 @@ function Detail({ label, children }) {
 }
 
 /** Reasons and outcomes worth calling out above the description. */
-function Outcome({ incident }) {
+function Outcome({ incident, canOpenOriginal }) {
+  if (incident.status === 'closed' && incident.duplicate_of) {
+    const original = `#${incident.duplicate_of.id} ${incident.duplicate_of.title}`
+    return (
+      <Alert severity="info">
+        <strong>Closed as a duplicate</strong> of{' '}
+        {canOpenOriginal
+          ? <Link component={RouterLink} to={`/incidents/${incident.duplicate_of.id}`} color="inherit">{original}</Link>
+          : `“${original}”`}
+        . The facilities team is handling the problem there.
+      </Alert>
+    )
+  }
   if (incident.status === 'blocked' && incident.blocked_reason) {
     return <Alert severity="warning"><strong>Blocked:</strong> {incident.blocked_reason}</Alert>
   }
@@ -203,7 +215,7 @@ export default function IncidentDetailPage() {
           <Paper variant="outlined" component="section" aria-labelledby="description-heading" sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack spacing={2}>
               <Typography id="description-heading" variant="h3" component="h2">What's wrong</Typography>
-              <Outcome incident={item} />
+              <Outcome incident={item} canOpenOriginal={user.role === 'admin'} />
               <Typography sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{item.description}</Typography>
             </Stack>
           </Paper>
