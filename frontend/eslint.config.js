@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'e2e-report', 'test-results']),
+  globalIgnores(['dist', 'coverage', 'e2e-report', 'test-results']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -27,8 +27,8 @@ export default defineConfig([
     },
   },
   {
-    // Build tooling runs in Node, not the browser.
-    files: ['*.config.js'],
+    // Build tooling and the Playwright tests run in Node, not the browser.
+    files: ['*.config.js', 'e2e/**/*.js'],
     languageOptions: { globals: globals.node },
   },
 ])

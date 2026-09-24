@@ -1,20 +1,24 @@
 import { expect } from '@playwright/test'
 
-/** Password of every seeded demo account (backend/helpdesk/app/seed.py). */
-export const DEMO_PASSWORD = 'Password123'
+/**
+ * Password of the seeded demo accounts: Password123 locally; on the deployed site, the one
+ * the seed_demo_data task was given or returned (set E2E_PASSWORD).
+ */
+export const DEMO_PASSWORD = process.env.E2E_PASSWORD || 'Password123'
 
 export const PEOPLE = {
   admin: { email: 'morgan.facilities@acme.inc', name: 'Morgan Facilities', first: 'Morgan' },
   employee: { email: 'maria.garcia@acme.inc', name: 'Maria Garcia', first: 'Maria' },
+  otherEmployee: { email: 'jane.doe@acme.inc', name: 'Jane Doe', first: 'Jane' },
   engineerNetwork: { email: 'priya.shah@acme.inc', name: 'Priya Shah', first: 'Priya' },
   engineerPlumbing: { email: 'diego.martinez@acme.inc', name: 'Diego Martinez', first: 'Diego' },
   newHire: { email: 'nina.patel@acme.inc', name: 'Nina Patel', first: 'Nina' },
   deactivated: { email: 'chris.taylor@acme.inc', name: 'Chris Taylor' },
 }
 
-/** A title no other test or demo incident uses. */
+/** A title no other test or demo incident uses, marked [e2e] so test data is easy to spot. */
 export function uniqueTitle(text) {
-  return `${text} ${Date.now().toString(36)}`
+  return `[e2e] ${text} ${Date.now().toString(36)}`
 }
 
 /** Sign in from the login page and wait for the signed-in app. */

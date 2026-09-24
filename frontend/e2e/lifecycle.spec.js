@@ -34,7 +34,7 @@ test.describe('Incident lifecycle', () => {
     await expect(page.getByRole('link', { name: title })).toBeVisible()
   })
 
-  test('an admin finds it and assigns the plumbing engineer', async ({ page }) => {
+  test('an admin finds it and assigns a plumbing engineer', async ({ page }) => {
     await signIn(page, PEOPLE.admin)
     await navigateTo(page, 'Incidents')
     await page.getByLabel('Search').fill(title)
@@ -43,8 +43,9 @@ test.describe('Incident lifecycle', () => {
 
     await page.getByRole('button', { name: 'Assign engineer' }).click()
     const dialog = page.getByRole('dialog', { name: 'Assign an engineer' })
-    // The plumbing specialist is suggested first.
-    await expect(dialog.getByRole('radio').first()).toHaveAccessibleName(/Diego Martinez/)
+    // A plumbing specialist is suggested first. Which one depends on the data (availability,
+    // workload), so don't assume a name; the next steps need Diego, so choose him explicitly.
+    await expect(dialog.getByRole('radio').first()).toHaveAccessibleName(/Plumbing/)
     await dialog.getByRole('radio', { name: /Diego Martinez/ }).check()
     await dialog.getByRole('button', { name: 'Assign' }).click()
 

@@ -13,6 +13,12 @@ describe('describeEvent', () => {
     [{ type: 'assigned', from_value: 'Diego', to_value: 'Sam' }, 'reassigned it from Diego to Sam'],
     [{ type: 'priority_changed', from_value: 'high', to_value: 'critical' }, 'changed the priority from high to critical'],
     [{ type: 'assignment_rejected', to_value: 'Sam Rivera' }, "turned down Sam Rivera's request to take it"],
+    [{ type: 'unassigned', from_value: 'Diego' }, 'unassigned Diego'],
+    [{ type: 'escalated' }, 'escalated it'],
+    [{ type: 'deescalated' }, 'removed the escalation'],
+    [{ type: 'assignment_requested' }, 'asked to take this incident'],
+    [{ type: 'updated' }, 'edited the details'],
+    [{ type: 'something_new' }, 'something new'],
   ])('%o', (event, text) => {
     expect(describeEvent(event)).toBe(text)
   })

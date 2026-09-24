@@ -25,7 +25,8 @@ test('a new employee registers and is signed in straight away', async ({ page })
   await signIn(page, person, 'Welcome2026')
 })
 
-test('a new hire must choose a password before using the app', async ({ page }) => {
+// Changes Nina's password for good, so it can only succeed on a freshly seeded database (local).
+test('a new hire must choose a password before using the app', { tag: '@local-only' }, async ({ page }) => {
   await signIn(page, PEOPLE.newHire)
   await expect(page.getByRole('heading', { name: 'Change password' })).toBeVisible()
   await expect(page.getByText(/Choose a new password to continue/)).toBeVisible()

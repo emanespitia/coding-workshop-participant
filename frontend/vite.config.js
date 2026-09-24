@@ -18,6 +18,16 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.js'],
     include: ['src/**/*.test.{js,jsx}'],  // e2e/ holds Playwright tests (npm run test:e2e)
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{js,jsx}'],
+      // main.jsx only mounts <App /> on the page; App itself is covered by App.test.jsx.
+      exclude: ['src/**/*.test.{js,jsx}', 'src/test/**', 'src/main.jsx'],
+      // The workshop guide's target: fail the run if coverage drops below 80%.
+      thresholds: { lines: 80, statements: 80, functions: 80, branches: 80 },
+      reporter: ['text-summary', 'text', 'html'],
+      reportsDirectory: 'coverage',
+    },
     css: false,
   },
 })

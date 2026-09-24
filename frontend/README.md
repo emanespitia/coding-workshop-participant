@@ -33,6 +33,7 @@ To point the dev server at a different API, set `HELPDESK_API_TARGET` (see `.env
 | `npm run dev` | Dev server with hot reload on port 3000 |
 | `npm test` | Run the tests once (Vitest + Testing Library) |
 | `npm run test:watch` | Re-run tests as files change |
+| `npm run test:coverage` | Tests with a coverage report (`coverage/index.html`); fails below 80% |
 | `npm run test:e2e` | End-to-end tests in a real browser against the real API and database ([e2e/README.md](e2e/README.md)) |
 | `npm run lint` | ESLint |
 | `npm run build` | Production build into `dist/` |

@@ -10,8 +10,13 @@ import logging
 
 from mangum import Mangum
 
-from app.main import app
-from app.tasks import is_task_event, run_task
+from app.core.memory import return_large_blocks_to_os
+
+# Before anything else allocates: stop sign-ins from permanently using ~16 MB (see app/core/memory.py).
+return_large_blocks_to_os()
+
+from app.main import app  # pylint: disable=wrong-import-position
+from app.tasks import is_task_event, run_task  # pylint: disable=wrong-import-position
 
 logging.getLogger().setLevel(logging.INFO)
 

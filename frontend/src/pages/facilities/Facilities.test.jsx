@@ -109,4 +109,89 @@ describe('Facilities', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Delete building' }))
     expect(await within(dialog).findByText("HQ Tower has incidents reported in it, so it can't be deleted.")).toBeInTheDocument()
   })
+
+  it('edits the building name and address', async () => {
+    const fetchMock = openBuilding({ 'PATCH /buildings/1': jsonResponse(200, { building: HQ }) })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit building' })
+    const name = within(dialog).getByLabelText(/Name/)
+    await user.clear(name)
+    await user.type(name, 'HQ Tower North')
+    await user.clear(within(dialog).getByLabelText(/Address/))
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await screen.findByRole('button', { name: 'Edit' })
+    expect(body(fetchMock, 'PATCH', '/buildings/1')).toEqual({ name: 'HQ Tower North', address: null })
+  })
+
+  it('edits a floor', async () => {
+    const fetchMock = openBuilding({ 'PATCH /floors/6': jsonResponse(200, { floor: HQ.floors[1] }) })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: /Floor 1/ }))
+    await user.click(await screen.findByRole('button', { name: 'Edit floor' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit Floor 1' })
+    const level = within(dialog).getByLabelText(/Level/)
+    await user.clear(level)
+    await user.type(level, '3')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await screen.findByRole('button', { name: 'Add floor' })
+    expect(body(fetchMock, 'PATCH', '/floors/6')).toEqual({ name: 'Floor 1', level: 3 })
+  })
+
+  it("deletes an unused floor, and explains when one can't be deleted", async () => {
+    let deletes = 0
+    const fetchMock = openBuilding({
+      'GET /floors/6/seats': jsonResponse(200, listOf([])),
+      'DELETE /floors/6': () => {
+        deletes += 1
+        return deletes === 1
+          ? apiError(409, 'IN_USE', 'This floor is referenced by incidents and cannot be deleted')
+          : new Response(null, { status: 204 })
+      },
+    })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: /Floor 1/ }))
+    await user.click(await screen.findByRole('button', { name: 'Delete floor' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete Floor 1?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Delete floor' }))
+    expect(await within(dialog).findByText("Floor 1 has incidents reported on it, so it can't be deleted.")).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete floor' }))
+    await screen.findByRole('button', { name: 'Add floor' })
+    expect(fetchMock.mock.calls.filter(([url, i]) => i.method === 'DELETE' && url.endsWith('/floors/6'))).toHaveLength(2)
+  })
+
+  it('renames a seat', async () => {
+    const fetchMock = openBuilding({ 'PATCH /seats/21': jsonResponse(200, { seat: { id: 21, code: 'G-02A' } }) })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: /Ground/ }))
+    await user.click(await screen.findByRole('button', { name: 'Rename seat G-02' }))
+    const dialog = screen.getByRole('dialog', { name: 'Rename seat G-02' })
+    const code = within(dialog).getByLabelText(/Seat or desk code/)
+    await user.clear(code)
+    await user.type(code, 'G-02A')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await screen.findByRole('list', { name: 'Seats on Ground' })
+    expect(body(fetchMock, 'PATCH', '/seats/21')).toEqual({ code: 'G-02A' })
+  })
+
+  it('deletes a building that has no incidents and returns to the list', async () => {
+    openBuilding({
+      'DELETE /buildings/1': new Response(null, { status: 204 }),
+      'GET /buildings': jsonResponse(200, listOf([])),
+    })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete building' }))
+    expect(await screen.findByText('HQ Tower was deleted.')).toBeInTheDocument()
+    expect(await screen.findByText('No buildings yet')).toBeInTheDocument()
+  })
 })

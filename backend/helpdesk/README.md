@@ -61,7 +61,8 @@ app/main.py            FastAPI app: routers, error handlers, /api/helpdesk prefi
 app/models.py          imports every ORM model (tables are created from these on cold start)
 app/core/              config, db (SQLAlchemy engine + sessions), deps (FastAPI dependencies:
                        DbSession, CurrentUser, AdminUser), auth (token -> user), errors,
-                       security (scrypt + JWT), schemas (Pydantic base types), orm (Base)
+                       security (scrypt + JWT), schemas (Pydantic base types), orm (Base),
+                       memory (keeps sign-ins from holding ~16 MB on the 128 MB Lambda)
 app/auth/              routes + schemas: register, login, refresh, me, change password
 app/users/             models (SQLAlchemy), schemas (Pydantic), routes, service (rules), repository (queries)
 app/facilities/        buildings, floors, seats: models, schemas, routes, service

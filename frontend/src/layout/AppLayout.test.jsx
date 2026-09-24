@@ -61,6 +61,14 @@ describe('Navigation bar', () => {
   })
 })
 
+describe('Unknown pages', () => {
+  it('shows a not-found page with a way back', async () => {
+    await signedInAs('employee', '/no-such-page')
+    expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go to your dashboard' })).toHaveAttribute('href', '/')
+  })
+})
+
 describe('On phones', () => {
   it('moves the links into a menu that closes after choosing a page', async () => {
     setScreenWidth(390)

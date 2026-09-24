@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { PEOPLE, signIn } from './helpers'
+import { PEOPLE, reportIncident, signIn, signOut, uniqueTitle } from './helpers'
 
 /** Call the API as the signed-in user (token from the app's storage) and return the status. */
 function apiStatus(page, path, method = 'GET') {
@@ -26,12 +26,19 @@ test('employees only see employee pages, and the API refuses admin actions too',
 })
 
 test("employees can't open someone else's incident", async ({ page }) => {
+  // Jane reports an incident…
+  await signIn(page, PEOPLE.otherEmployee)
+  const title = uniqueTitle('Flickering light by the stairs')
+  const id = await reportIncident(page, {
+    title, details: 'The ceiling light flickers all day.', category: 'Electrical', building: 'HQ Tower',
+  })
+  await signOut(page, PEOPLE.otherEmployee)
+
+  // …Maria can't find it in her list, and opening it directly reads as not found.
   await signIn(page, PEOPLE.employee)
-  await page.goto('/incidents?q=Air conditioning')
-  // Jane reported the air-conditioning incident, so Maria's list doesn't show it…
+  await page.goto(`/incidents?q=${encodeURIComponent(title)}`)
   await expect(page.getByText('No incidents match')).toBeVisible()
-  // …and opening an id she can't see reads as not found.
-  await page.goto('/incidents/1')
+  await page.goto(`/incidents/${id}`)
   await expect(page.getByText(/doesn't exist, or you don't have access to it/)).toBeVisible()
 })
 

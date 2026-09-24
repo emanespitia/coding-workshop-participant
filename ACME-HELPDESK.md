@@ -9,7 +9,7 @@ a full history along the way.
 - **Stack:** React 19 + Material UI 9 + React Responsive · Python 3.13 FastAPI on AWS Lambda ·
   PostgreSQL (Aurora Serverless v2)
 - **Status:** every feature in the brief is implemented for all three roles; 260 backend tests
-  (98% coverage), 160 frontend tests and 16 end-to-end browser journeys pass. See
+  (98% coverage), 175 frontend tests (93% coverage) and 16 end-to-end browser journeys pass. See
   [Known gaps](#known-gaps-and-next-steps).
 
 > This file documents the project built on top of the workshop template. The template's own
@@ -177,8 +177,10 @@ local database, then reloads the demo data).
 | --- | --- | --- |
 | Backend unit + integration | `cd backend/helpdesk && .venv/bin/pytest --cov=app` | 260 passed, 98% line coverage |
 | Backend lint | `.venv/bin/python -m pylint app function.py` | 10.00 / 10 |
-| Frontend components + API client | `cd frontend && npm test` | 160 passed |
+| Frontend components + API client | `cd frontend && npm test` | 175 passed |
+| Frontend coverage | `npm run test:coverage` | 93.1% lines · 91.3% statements · 91.6% functions · 83.2% branches (fails below 80%) |
 | End-to-end (real browser, API and database) | `cd frontend && npm run test:e2e` | 16 passed (desktop + phone) |
+| Load test (Artillery) | `cd loadtest && npm run load -- --target <site>` | Deployed site: 9,884 requests, 0 failed, p95 495 ms, p99 934 ms |
 | Frontend lint / build | `npm run lint` · `npm run build` | clean |
 
 **Backend.** Unit tests cover the workflow rules, validation models, password and token
@@ -200,15 +202,27 @@ incident lifecycle across all three roles (report → assign → start → note 
 reporter sees the outcome), an engineer's request and the admin's approval, registration, the
 forced password change, sign-in errors, sessions surviving reloads, role-based access checked
 in the UI **and** at the API (403s), building / floor filtering with the live count, and
-reporting from a phone. Details: [frontend/e2e/README.md](frontend/e2e/README.md).
+reporting from a phone. The same suite can run against the **deployed site**
+(`E2E_BASE_URL=… E2E_PASSWORD=… npm run test:e2e`; 15 of 16 journeys, skipping one that can only
+succeed once). Details: [frontend/e2e/README.md](frontend/e2e/README.md).
 
 **Manual validation on AWS** (after each deploy): health check through CloudFront, a real 404
 returned as JSON, first-admin sign-in and forced password change, reloading a deep link
 (for example `/incidents/12`), loading demo data, and reading the Lambda `REPORT` log lines for
 cold-start and request times.
 
-**Known testing gaps:** frontend line coverage isn't measured yet, the end-to-end suite runs
-locally (not yet against the deployed site), and no load test has been run. See
+**Load.** An Artillery scenario ([loadtest](loadtest/README.md)) replays realistic, read-only
+traffic (employees checking incidents, admins on the dashboard, sign-ins) ramping to 10 new
+visitors per second for ~5 minutes, and fails if more than 1% of visitors hit an error or if
+p95 / p99 exceed 2 s / 5 s.
+
+Against the deployed site (128 MB Lambda) it passed every check: 9,884 requests with 0 failures,
+median 155 ms, p95 495 ms, p99 934 ms, peaking at ~48 requests/s. Lambda memory peaked at
+121 MB, and the only slow requests were cold starts and the first request while the idle
+database resumed ([details](loadtest/README.md#results)).
+
+**Known testing gaps:** none of the planned test types are missing. `src/main.jsx` (the two lines that mount the app) is excluded
+from coverage; everything else in `frontend/src` is measured. See
 [Known gaps](#known-gaps-and-next-steps).
 
 ## Deploy to AWS
@@ -262,7 +276,7 @@ The demo accounts get a random password, returned once in the result and never l
 | **"Engineer resolves = done"**; only admins close or reopen resolved incidents | Admins confirm the outcome; reporters can still add notes or escalate | Reporters can't reopen directly; they ask via a note or escalation |
 | **CloudFront Function for page URLs** (a template change) | The template's site-wide 404 → `index.html` rule also rewrote the API's JSON 404s into a fake "200 OK" page, and reloading `/incidents/12` showed S3's "Access Denied" | A small change to `infra/cloudfront.tf`; page URLs must not contain a dot |
 | **Demo data via a direct Lambda invoke** (`seed_demo_data`) | The database isn't reachable from outside the VPC; only someone with AWS permissions can run it, and the password is random by default | A manual command after the first deploy |
-| **Lambda stays at the template's 128 MB** | Keep the template as is | Slower cold starts and sign-ins (scrypt runs on a small CPU share); admin pages and charts are loaded on demand to keep the browser download small |
+| **Lambda stays at the template's 128 MB** | Keep the template as is | Slower cold starts (~3 s to load, 6–8 s for the first request). The Lambda sits at ~110 MB, and near 128 MB requests slowed to ~15 s: password hashing (scrypt, ~16 MB) left that memory held after each sign-in. [app/core/memory.py](backend/helpdesk/app/core/memory.py) makes the allocator hand large blocks back (measured: 16 MB returned, same security); admin pages and charts load on demand to keep the browser download small |
 | **Tokens in `localStorage`** with silent refresh | Simple, works with the single-origin setup and survives reloads | Readable by any script on the page if an XSS bug existed; mitigated by React's escaping and no third-party scripts. An httpOnly cookie would be the next step |
 | **Charts only where they help** (`@mui/x-charts`): daily trend and categories, each with a table view | Most dashboard data reads better as numbers, tables and ranked lists; chart colors pass color-blind and contrast checks in both themes | The chart library is ~110 kB gzipped (loaded only for admins) |
 
@@ -294,8 +308,6 @@ the only edits to the template's files, kept small on purpose:
 
 ## Known gaps and next steps
 
-- **Frontend coverage report** (target 80%+), and a **load test** of the cloud API.
-- Run the end-to-end suite against the **deployed site** too (it currently runs locally).
 - **Database migrations** (for example Alembic) before the schema changes again.
 - **Performance at 128 MB:** measure cold start and sign-in from the Lambda logs; if needed,
   warm the Lambda and database when the sign-in page opens, and import rarely used modules lazily.
