@@ -9,7 +9,9 @@ Runs automatically when the local server starts with SEED_DEMO_DATA=true
 duplicates; demo users and places you delete come back on the next start.
 Demo incidents are only created when there are no incidents at all.
 
-Every demo account uses the password DEMO_PASSWORD. Never enabled on AWS.
+Locally every demo account uses the password DEMO_PASSWORD. Automatic seeding is
+never enabled on AWS; there it only runs when an operator invokes the Lambda task
+`seed_demo_data` (see app/tasks.py), which uses a random password by default.
 
 Manual use (from backend/helpdesk):
     .venv/bin/python -m app.seed            # add missing demo data
@@ -403,16 +405,23 @@ def _seed_incidents(session: Session) -> int:
     return len(INCIDENTS)
 
 
-def run(session: Session) -> None:
-    """Add any missing demo users, buildings, floors and seats, and demo incidents if there are none."""
-    password_hash = security.hash_password(DEMO_PASSWORD)
+def run(session: Session, password: str = DEMO_PASSWORD) -> dict[str, int]:
+    """
+    Add any missing demo users, buildings, floors and seats, and demo incidents if there
+    are none. New demo accounts get `password`; existing accounts are left unchanged.
+    Returns how many of each were added.
+    """
+    password_hash = security.hash_password(password)
     users = _seed_users(session, password_hash)
     places = _seed_facilities(session)
     session.flush()
     incidents = _seed_incidents(session)
     if users or places or incidents:
+        # Only the well-known local password is logged; a chosen one never reaches the logs.
+        shown = password if password == DEMO_PASSWORD else "<not logged>"
         logger.info("Demo data: added %s users, %s buildings/floors/seats and %s incidents (password: %s)",
-                    users, places, incidents, DEMO_PASSWORD)
+                    users, places, incidents, shown)
+    return {"users": users, "places": places, "incidents": incidents}
 
 
 def reset(session: Session) -> None:

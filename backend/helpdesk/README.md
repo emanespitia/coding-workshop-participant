@@ -50,24 +50,27 @@ To start over from a clean database:
 .venv/bin/python -m app.seed --reset
 ```
 
-Seeding refuses to run unless `IS_LOCAL=true`, and is never enabled on AWS Lambda.
+Automatic seeding only runs locally (`IS_LOCAL=true`), never on AWS Lambda. To load the demo
+data into the cloud, see [Demo data on AWS](#demo-data-on-aws).
 
 ## Layout
 
 ```
-function.py            Lambda entry point (Mangum wraps the FastAPI app)
+function.py            Lambda entry point: HTTP events → FastAPI (Mangum); {"task": …} → app/tasks.py
 app/main.py            FastAPI app: routers, error handlers, /api/helpdesk prefix, CORS (local only)
 app/models.py          imports every ORM model (tables are created from these on cold start)
 app/core/              config, db (SQLAlchemy engine + sessions), deps (FastAPI dependencies:
                        DbSession, CurrentUser, AdminUser), auth (token -> user), errors,
-                       security (scrypt + JWT), schemas (Pydantic base types), orm (Base)
+                       security (scrypt + JWT), schemas (Pydantic base types), orm (Base),
+                       memory (keeps sign-ins from holding ~16 MB on the 128 MB Lambda)
 app/auth/              routes + schemas: register, login, refresh, me, change password
 app/users/             models (SQLAlchemy), schemas (Pydantic), routes, service (rules), repository (queries)
 app/facilities/        buildings, floors, seats: models, schemas, routes, service
 app/incidents/         models, schemas, workflow (status rules + permissions, no DB), service
                        (lifecycle), notes, assignments (engineer requests), routes, assignment_routes
 app/reports/           dashboard summary: SQL aggregates scoped by role
-app/seed.py            local demo data (users, facilities, incidents); python -m app.seed [--reset]
+app/seed.py            demo data (users, facilities, incidents); python -m app.seed [--reset]
+app/tasks.py           operator tasks run by invoking the Lambda directly (seed_demo_data)
 tests/unit/            no database needed
 tests/integration/     run against a real PostgreSQL (database `helpdesk_test`)
 ```
@@ -91,10 +94,13 @@ tests/integration/     run against a real PostgreSQL (database `helpdesk_test`)
 | GET / PATCH / DELETE | `/floors/{id}` | read: signed in · write: admin |
 | GET / POST | `/floors/{id}/seats` | read: signed in · write: admin |
 | GET / PATCH / DELETE | `/seats/{id}` | read: signed in · write: admin |
-| GET / POST | `/incidents` | signed in (list is limited to what you may see) |
+| GET / POST | `/incidents` | signed in (list is limited to what you may see; `?possible_duplicate=true` for flagged ones) |
+| GET | `/incidents/similar?building_id=&category=&floor_id=&seat_id=&title=` | signed in: active incidents from the last 30 days that may be the same problem (title, category, status, location and date only) |
 | GET / PATCH / DELETE | `/incidents/{id}` | view: who can see it · edit: reporter while open, admin · delete: admin |
 | POST | `/incidents/{id}/status` | per workflow rules (see below) |
 | POST | `/incidents/{id}/assign` | admin |
+| POST | `/incidents/{id}/close-as-duplicate` | admin (`{"duplicate_of_id": 12}`) |
+| DELETE | `/incidents/{id}/possible-duplicate` | admin (clears the "possible duplicate" flag) |
 | POST / DELETE | `/incidents/{id}/escalate`, `/incidents/{id}/escalation` | reporter or admin / admin |
 | GET | `/incidents/{id}/events` | who can see it |
 | GET / POST | `/incidents/{id}/notes` | read: who can see it · write: reporter, assignee, admin |
@@ -121,6 +127,11 @@ Errors always look like `{"error": {"code": "...", "message": "...", "fields": {
 | resolved → closed | admin | |
 | resolved → in_progress | admin (reopen) | reason |
 | in_progress / blocked → closed | admin | reason |
+
+Duplicates: before reporting, the app asks `/incidents/similar` (same building and category,
+still active, last 30 days; ranked by floor, seat and shared title words) and warns the user.
+If they report anyway, the new incident is flagged `possible_duplicate_of` for admins, who can
+close it as a duplicate (it links to the original) or clear the flag.
 
 Visibility: employees see incidents they reported; engineers see their assigned work and the
 open, unassigned pool; admins see everything. Incident details include `allowed_transitions`
@@ -150,7 +161,9 @@ role doesn't get are `null`.
 SQLAlchemy 2.0 ORM over psycopg 3. Tables, constraints and indexes are defined on the
 models and created with `Base.metadata.create_all()` on the first request of each Lambda
 container (guarded by a PostgreSQL advisory lock). `create_all` only creates *missing*
-tables; changing an existing table needs a manual `ALTER TABLE` (no migration tool yet).
+tables, so columns added later are listed in `_COLUMN_UPGRADES` in
+[app/core/db.py](app/core/db.py) and added with idempotent `ALTER TABLE … ADD COLUMN IF NOT EXISTS`
+on start (no migration tool yet).
 
 ## First admin
 
@@ -160,6 +173,29 @@ On first start the service creates `admin@acme.inc` with the password from
 ```sh
 cd infra && terraform output -raw admin_bootstrap_password
 ```
+
+## Demo data on AWS
+
+The cloud database starts empty apart from `admin@acme.inc`. To load the demo buildings,
+users and incidents, invoke the Lambda directly with the `seed_demo_data` task (after
+`./bin/deploy-backend.sh`):
+
+```sh
+source ENVIRONMENT.config     # from the repo root; uses AWS_REGION from your shell (us-east-2 here)
+aws lambda invoke --function-name coding-workshop-helpdesk-$PARTICIPANT_ID \
+    --cli-binary-format raw-in-base64-out \
+    --payload '{"task": "seed_demo_data"}' /tmp/seed-result.json && cat /tmp/seed-result.json
+```
+
+- New demo accounts get a **random password**, returned once in `/tmp/seed-result.json`
+  (`demo_password`) and never logged. To choose it, add `"password": "YourPass123"`
+  to the payload (it must follow the password rules).
+- It only adds what is missing, so running it again is safe; existing accounts keep their
+  passwords. `admin@acme.inc` keeps its bootstrap password (see [First admin](#first-admin)).
+- Only someone with AWS permission to invoke the function can run it: requests through
+  CloudFront or the Function URL are HTTP events and always go to the API
+  ([function.py](function.py), [app/tasks.py](app/tasks.py)).
+- The result file is written outside the repo (it contains the password); delete it when done.
 
 ## Tests
 

@@ -22,7 +22,7 @@ from app.core.constants import (
 )
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.facilities.models import Building, Floor, Seat
-from app.incidents import workflow
+from app.incidents import duplicates, workflow
 from app.incidents.models import AssignmentRequest, Incident, IncidentEvent
 from app.incidents.schemas import IncidentListQuery
 from app.users.models import User
@@ -157,6 +157,9 @@ def list_incidents(session: Session, user: User, query: IncidentListQuery) -> tu
         conditions.append(Incident.is_escalated.is_(query.escalated))
     if query.unassigned is not None:
         conditions.append(Incident.assignee_id.is_(None) if query.unassigned else Incident.assignee_id.is_not(None))
+    if query.possible_duplicate is not None:
+        conditions.append(Incident.possible_duplicate_of_id.is_not(None) if query.possible_duplicate
+                          else Incident.possible_duplicate_of_id.is_(None))
 
     total = session.scalar(select(func.count()).select_from(Incident).where(*conditions))
     items = session.scalars(
@@ -195,6 +198,7 @@ _DETAIL_ATTRIBUTES = (
     "building", "floor", "seat", "reporter", "assignee",
     "escalation_reason", "blocked_reason", "resolution", "close_reason",
     "created_at", "updated_at", "acknowledged_at", "assigned_at", "escalated_at", "resolved_at", "closed_at",
+    "possible_duplicate_of_id", "possible_duplicate_of", "duplicate_of",
 )
 
 
@@ -216,6 +220,49 @@ def create_incident(session: Session, reporter: User, data: dict[str, Any]) -> I
     session.add(incident)
     session.flush()
     record(session, incident, reporter, "created", to_value=STATUS_OPEN)
+    # The reporter was warned about similar incidents and reported anyway: let admins review it.
+    similar = duplicates.find_similar(
+        session, building_id=incident.building_id, category=incident.category, floor_id=incident.floor_id,
+        seat_id=incident.seat_id, title=incident.title, exclude_id=incident.id)
+    if similar:
+        incident.possible_duplicate_of_id = similar[0].id
+    return _save(session, incident)
+
+
+def close_as_duplicate(session: Session, admin: User, incident_id: int, duplicate_of_id: int) -> Incident:
+    """Close an incident because another one already covers it. Admin only."""
+    incident = get_visible(session, admin, incident_id, for_update=True)
+    if incident.status == STATUS_CLOSED:
+        raise ConflictError("This incident is already closed", code="INVALID_STATE")
+    if duplicate_of_id == incident.id:
+        raise ValidationError({"duplicate_of_id": "An incident can't be a duplicate of itself"})
+    original = session.get(Incident, duplicate_of_id)
+    if original is None:
+        raise ValidationError({"duplicate_of_id": "Incident not found"})
+    if original.duplicate_of_id is not None:
+        raise ValidationError({"duplicate_of_id": (
+            f"#{original.id} is itself a duplicate of #{original.duplicate_of_id}; "
+            f"use #{original.duplicate_of_id} instead")})
+
+    comment = f"Duplicate of #{original.id}: {original.title}"
+    previous = incident.status
+    incident.status = STATUS_CLOSED
+    incident.closed_at = func.now()
+    incident.close_reason = comment
+    incident.blocked_reason = None
+    incident.duplicate_of_id = original.id
+    incident.possible_duplicate_of_id = None
+    settle_requests(session, incident, admin, approved_engineer_id=None, note=None,
+                    reason="The incident was closed as a duplicate")
+    acknowledge(incident, admin)
+    record(session, incident, admin, "status_changed", from_value=previous, to_value=STATUS_CLOSED, comment=comment)
+    return _save(session, incident)
+
+
+def dismiss_possible_duplicate(session: Session, admin: User, incident_id: int) -> Incident:
+    """An admin checked the flagged incident and it's a different problem. Admin only."""
+    incident = get_visible(session, admin, incident_id, for_update=True)
+    incident.possible_duplicate_of_id = None
     return _save(session, incident)
 
 

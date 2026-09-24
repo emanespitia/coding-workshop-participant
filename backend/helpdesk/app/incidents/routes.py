@@ -12,9 +12,10 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Response, status
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
-from app.incidents import notes, service
+from app.incidents import duplicates, notes, service
 from app.incidents.schemas import (
     AssignRequest,
+    DuplicateInput,
     EscalateRequest,
     EventListResponse,
     IncidentCreate,
@@ -25,6 +26,8 @@ from app.incidents.schemas import (
     NoteInput,
     NoteListResponse,
     NoteResponse,
+    SimilarListResponse,
+    SimilarQuery,
     StatusChange,
 )
 
@@ -50,6 +53,18 @@ def create_incident(body: IncidentCreate, db: DbSession, user: CurrentUser) -> d
     """Report an incident. It starts **Open** and unassigned; priority is your suggestion."""
     incident = service.create_incident(db, user, body.model_dump())
     return service.detail(db, user, incident)
+
+
+@router.get("/similar", response_model=SimilarListResponse)
+def similar_incidents(query: Annotated[SimilarQuery, Query()], db: DbSession, _: CurrentUser) -> dict:
+    """
+    Active incidents from the last 30 days that may be the same problem (same building and
+    category, ranked by floor, seat and title words). Shown before reporting so people can
+    avoid duplicates. Returns only title, category, status, location and date.
+    """
+    return {"items": duplicates.find_similar(
+        db, building_id=query.building_id, category=query.category, floor_id=query.floor_id,
+        seat_id=query.seat_id, title=query.title or "")}
 
 
 @router.get("/{incident_id}", response_model=IncidentResponse)
@@ -117,6 +132,18 @@ def escalate(incident_id: int, body: EscalateRequest, db: DbSession, user: Curre
 def deescalate(incident_id: int, db: DbSession, admin: AdminUser) -> dict:
     """Clear the escalation flag. **Admin only.**"""
     return service.detail(db, admin, service.deescalate(db, admin, incident_id))
+
+
+@router.post("/{incident_id}/close-as-duplicate", response_model=IncidentResponse)
+def close_as_duplicate(incident_id: int, body: DuplicateInput, db: DbSession, admin: AdminUser) -> dict:
+    """Close the incident because another one already covers it. **Admin only.**"""
+    return service.detail(db, admin, service.close_as_duplicate(db, admin, incident_id, body.duplicate_of_id))
+
+
+@router.delete("/{incident_id}/possible-duplicate", response_model=IncidentResponse)
+def dismiss_possible_duplicate(incident_id: int, db: DbSession, admin: AdminUser) -> dict:
+    """Clear the "possible duplicate" flag: it's a different problem. **Admin only.**"""
+    return service.detail(db, admin, service.dismiss_possible_duplicate(db, admin, incident_id))
 
 
 @router.get("/{incident_id}/events", response_model=EventListResponse)

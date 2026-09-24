@@ -1,0 +1,13 @@
+{
+  "name": "acme-helpdesk-loadtest",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Load test for the helpdesk API (Artillery)",
+  "scripts": {
+    "load": "artillery run -e cloud helpdesk.yml",
+    "load:local": "artillery run -e local helpdesk.yml"
+  },
+  "devDependencies": {
+    "artillery": "^2.0.34"
+  }
+}

@@ -1,0 +1,147 @@
+# Load test for the helpdesk API. See README.md.
+#
+#   Deployed site:  HELPDESK_PASSWORD=... npx artillery run -e cloud --target https://xxxx.cloudfront.net helpdesk.yml
+#   Local check:    HELPDESK_PASSWORD=Password123 npx artillery run -e local helpdesk.yml
+#
+# Read-heavy and non-destructive: signs in and reads, never creates or changes data.
+config:
+  target: http://localhost:8100
+  http:
+    timeout: 30          # seconds; CloudFront gives up on the Lambda after 30 s anyway
+  # Pick a load profile with -e (each lists all its phases; Artillery merges phase lists by
+  # position, so there are deliberately no top-level phases).
+  environments:
+    cloud:               # the deployed site: ~5 minutes, up to 10 new visitors per second
+      phases:
+        - name: warm up
+          duration: 60
+          arrivalRate: 2
+        - name: ramp up
+          duration: 120
+          arrivalRate: 2
+          rampTo: 10
+        - name: sustained
+          duration: 120
+          arrivalRate: 10
+    local:               # a 20-second check that the scenarios work
+      phases:
+        - name: smoke
+          duration: 20
+          arrivalRate: 2
+  plugins:
+    expect:              # a non-2xx response counts as a failed visitor
+      outputFormat: prettyError   # print only failures
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+    ensure: {}           # enables the pass / fail checks below
+  # Pass / fail: the run exits non-zero if these aren't met.
+  ensure:
+    maxErrorRate: 1                          # % of visitors with any failed request
+    thresholds:
+      - "http.response_time.p95": 2000       # ms
+      - "http.response_time.p99": 5000       # ms
+
+# Runs once before the test: sign in an employee and an admin, and find an incident the
+# employee can open. Every visitor then reuses these tokens (like people already signed in).
+before:
+  flow:
+    - post:
+        url: /api/helpdesk/auth/login
+        json:
+          email: maria.garcia@acme.inc
+          password: "{{ $env.HELPDESK_PASSWORD }}"
+        capture:
+          json: $.tokens.access_token
+          as: employeeToken
+        expect:
+          - statusCode: 200
+    - post:
+        url: /api/helpdesk/auth/login
+        json:
+          email: morgan.facilities@acme.inc
+          password: "{{ $env.HELPDESK_PASSWORD }}"
+        capture:
+          json: $.tokens.access_token
+          as: adminToken
+        expect:
+          - statusCode: 200
+    - get:
+        url: /api/helpdesk/incidents?sort=-updated_at&page_size=1
+        headers:
+          Authorization: "Bearer {{ employeeToken }}"
+        capture:
+          json: $.items[0].id
+          as: incidentId
+        expect:
+          - statusCode: 200
+
+scenarios:
+  - name: Employee checks their incidents
+    weight: 6
+    flow:
+      - get:
+          name: GET /auth/me
+          url: /api/helpdesk/auth/me
+          headers: { Authorization: "Bearer {{ employeeToken }}" }
+          expect: [{ statusCode: 200 }]
+      - get:
+          name: GET /reports/summary (employee)
+          url: /api/helpdesk/reports/summary?days=30
+          headers: { Authorization: "Bearer {{ employeeToken }}" }
+          expect: [{ statusCode: 200 }]
+      - get:
+          name: GET /incidents (list)
+          url: /api/helpdesk/incidents?sort=-updated_at&page=1&page_size=10
+          headers: { Authorization: "Bearer {{ employeeToken }}" }
+          expect: [{ statusCode: 200 }]
+      - think: 1
+      - get:
+          name: GET /incidents/{id}
+          url: /api/helpdesk/incidents/{{ incidentId }}
+          headers: { Authorization: "Bearer {{ employeeToken }}" }
+          expect: [{ statusCode: 200 }]
+      - get:
+          name: GET /incidents/{id}/notes
+          url: /api/helpdesk/incidents/{{ incidentId }}/notes
+          headers: { Authorization: "Bearer {{ employeeToken }}" }
+          expect: [{ statusCode: 200 }]
+      - get:
+          name: GET /incidents/{id}/events
+          url: /api/helpdesk/incidents/{{ incidentId }}/events
+          headers: { Authorization: "Bearer {{ employeeToken }}" }
+          expect: [{ statusCode: 200 }]
+
+  - name: Admin monitors facilities
+    weight: 3
+    flow:
+      - get:
+          name: GET /reports/summary (admin)
+          url: /api/helpdesk/reports/summary?days=30
+          headers: { Authorization: "Bearer {{ adminToken }}" }
+          expect: [{ statusCode: 200 }]
+      - get:
+          name: GET /assignment-requests (pending)
+          url: /api/helpdesk/assignment-requests?status=pending
+          headers: { Authorization: "Bearer {{ adminToken }}" }
+          expect: [{ statusCode: 200 }]
+      - get:
+          name: GET /incidents (active, admin)
+          url: /api/helpdesk/incidents?status=open,in_progress,blocked&sort=-priority&page=1&page_size=10
+          headers: { Authorization: "Bearer {{ adminToken }}" }
+          expect: [{ statusCode: 200 }]
+      - get:
+          name: GET /buildings
+          url: /api/helpdesk/buildings
+          headers: { Authorization: "Bearer {{ adminToken }}" }
+          expect: [{ statusCode: 200 }]
+
+  - name: Someone signs in
+    weight: 1
+    flow:
+      - post:
+          name: POST /auth/login
+          url: /api/helpdesk/auth/login
+          json:
+            email: maria.garcia@acme.inc
+            password: "{{ $env.HELPDESK_PASSWORD }}"
+          expect: [{ statusCode: 200 }]

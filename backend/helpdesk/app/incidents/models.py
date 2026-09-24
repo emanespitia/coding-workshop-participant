@@ -76,11 +76,22 @@ class Incident(Base):
     resolved_at: Mapped[Optional[datetime]] = mapped_column(_TIMESTAMP)
     closed_at: Mapped[Optional[datetime]] = mapped_column(_TIMESTAMP)
 
+    # Duplicates: flagged automatically when a similar active incident existed at report time
+    # (admins review it), and set when an admin closes this incident as a duplicate.
+    possible_duplicate_of_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("incidents.id", ondelete="SET NULL"))
+    duplicate_of_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("incidents.id", ondelete="SET NULL"))
+
     building: Mapped[Building] = relationship(lazy="joined")
     floor: Mapped[Optional[Floor]] = relationship(lazy="joined")
     seat: Mapped[Optional[Seat]] = relationship(lazy="joined")
     reporter: Mapped[User] = relationship(foreign_keys=[reporter_id], lazy="joined")
     assignee: Mapped[Optional[User]] = relationship(foreign_keys=[assignee_id], lazy="joined")
+    # Loaded only when needed (the incident page), not for every row in a list.
+    possible_duplicate_of: Mapped[Optional["Incident"]] = relationship(
+        foreign_keys=[possible_duplicate_of_id], remote_side=[id], lazy="select")
+    duplicate_of: Mapped[Optional["Incident"]] = relationship(
+        foreign_keys=[duplicate_of_id], remote_side=[id], lazy="select")
 
 
 class IncidentEvent(Base):
