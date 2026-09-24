@@ -1,0 +1,4 @@
+# Playwright output (npm run test:e2e)
+/test-results/
+/e2e-report/
+/playwright/.cache/

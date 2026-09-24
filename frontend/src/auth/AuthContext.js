@@ -4,6 +4,7 @@ import { createContext, useContext } from 'react'
  * The signed-in user and the actions that change it. Provided by <AuthProvider>.
  *
  * status: 'loading' (checking a saved session) | 'signed-in' | 'signed-out'
+ *   | 'unavailable' (a saved session couldn't be checked: server unreachable or failing; see retry)
  */
 export const AuthContext = createContext(null)
 

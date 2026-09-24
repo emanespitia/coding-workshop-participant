@@ -14,7 +14,8 @@ export default function AuthProvider({ children }) {
     setStatus('signed-out')
   }, [])
 
-  // Restore a saved session on page load.
+  // Restore a saved session on page load. Only an invalid session (401) signs the user out;
+  // if the server can't be reached or is waking up, keep the session and offer a retry.
   useEffect(() => {
     if (status !== 'loading') return undefined
     let cancelled = false
@@ -24,13 +25,17 @@ export default function AuthProvider({ children }) {
         setUser(data.user)
         setStatus('signed-in')
       })
-      .catch(() => {
-        if (!cancelled) signOut()
+      .catch((error) => {
+        if (cancelled) return
+        if (error.status === 401) signOut()
+        else setStatus('unavailable')
       })
     return () => {
       cancelled = true
     }
   }, [status, signOut])
+
+  const retry = useCallback(() => setStatus('loading'), [])
 
   // Any request that finds the session gone signs the user out.
   useEffect(() => onSessionExpired(signOut), [signOut])
@@ -64,8 +69,8 @@ export default function AuthProvider({ children }) {
   }, [user])
 
   const value = useMemo(
-    () => ({ user, status, signIn, register, signOut, changePassword, updateProfile }),
-    [user, status, signIn, register, signOut, changePassword, updateProfile],
+    () => ({ user, status, signIn, register, signOut, changePassword, updateProfile, retry }),
+    [user, status, signIn, register, signOut, changePassword, updateProfile, retry],
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

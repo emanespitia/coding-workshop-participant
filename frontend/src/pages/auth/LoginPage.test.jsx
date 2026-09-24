@@ -1,6 +1,6 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { tokenStore } from '../../services/api'
 import { listOf, makeSummary } from '../../test/fixtures'
@@ -156,6 +156,33 @@ describe('Saved sessions', () => {
 
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     expect(tokenStore.get()).toBeNull()
+  })
+
+  it("keeps the session when the server can't be reached, and retries", async () => {
+    let calls = 0
+    mockApi({
+      'GET /auth/me': () => {
+        calls += 1
+        return calls === 1
+          ? apiError(503, 'SERVICE_UNAVAILABLE', 'Database unavailable')
+          : jsonResponse(200, { user: makeUser() })
+      },
+      ...DASHBOARD,
+    })
+    const user = userEvent.setup()
+    renderApp('/', { tokens: TOKENS })
+
+    expect(await screen.findByRole('heading', { name: "Can't reach the helpdesk" })).toBeInTheDocument()
+    expect(tokenStore.get()).toEqual(TOKENS)
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('heading', { name: 'Hi, Maria' })).toBeInTheDocument()
+  })
+
+  it('treats a dropped connection the same way', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    renderApp('/incidents', { tokens: TOKENS })
+    expect(await screen.findByRole('heading', { name: "Can't reach the helpdesk" })).toBeInTheDocument()
+    expect(tokenStore.get()).toEqual(TOKENS)
   })
 
   it('signs out', async () => {
