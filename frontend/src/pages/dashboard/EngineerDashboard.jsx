@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Alert, Box, Link, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, Link, Stack, Typography } from '@mui/material'
+import AddIcon from '@mui/icons-material/Add'
 import { Link as RouterLink } from 'react-router'
 
 import { useAuth } from '../../auth/AuthContext'
@@ -77,7 +78,12 @@ export default function EngineerDashboard({ flash }) {
             {specialties.map((s) => CATEGORY_LABELS[s] ?? s).join(' · ')}
           </Typography>
         </Stack>
-        <AvailabilityControl />
+        <Stack direction="row" spacing={2} useFlexGap sx={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <AvailabilityControl />
+          <Button component={RouterLink} to="/incidents/new" variant="outlined" startIcon={<AddIcon />}>
+            Report an incident
+          </Button>
+        </Stack>
       </Stack>
       {flash && <Alert severity="success">{flash}</Alert>}
     </>

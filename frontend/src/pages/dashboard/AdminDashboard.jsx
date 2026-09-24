@@ -2,6 +2,7 @@ import {
   Alert, Box, Button, Chip, Link, MenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, TextField, Typography,
 } from '@mui/material'
+import AddIcon from '@mui/icons-material/Add'
 import { Link as RouterLink, useSearchParams } from 'react-router'
 
 import { useAuth } from '../../auth/AuthContext'
@@ -153,7 +154,7 @@ export default function AdminDashboard({ flash }) {
           <Typography variant="h2" component="h1">Overview</Typography>
           <Typography sx={{ color: 'text.secondary' }}>Hi {user.full_name.split(' ')[0]}, here's how facilities are doing.</Typography>
         </Stack>
-        <Stack direction="row" spacing={1.5}>
+        <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
           <TextField select size="small" id="period" label="Period" value={days} onChange={(e) => setFilter('days', e.target.value)} sx={{ minWidth: 150 }}>
             {Object.entries(PERIODS).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
           </TextField>
@@ -161,6 +162,9 @@ export default function AdminDashboard({ flash }) {
             <MenuItem value="">All buildings</MenuItem>
             {(buildings.data?.items ?? []).map((b) => <MenuItem key={b.id} value={String(b.id)}>{b.name}</MenuItem>)}
           </TextField>
+          <Button component={RouterLink} to="/incidents/new" variant="outlined" startIcon={<AddIcon />}>
+            Report an incident
+          </Button>
         </Stack>
       </Stack>
       {flash && <Alert severity="success">{flash}</Alert>}
