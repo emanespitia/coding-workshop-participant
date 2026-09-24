@@ -8,15 +8,18 @@ import { useAuth } from './AuthContext'
 export const CHANGE_PASSWORD_PATH = '/account/password'
 
 /**
- * Pages for signed-in users. Anyone else goes to /login and comes back after signing in.
+ * Pages for signed-in users. Anyone else goes to /login and comes back after signing in,
+ * except after choosing "Sign out": the next person to sign in starts on their home page.
  * Users who must choose a new password (new accounts, admin resets) do that first.
  */
 export function RequireAuth() {
-  const { status, user } = useAuth()
+  const { status, user, signedOutByUser } = useAuth()
   const location = useLocation()
   if (status === 'loading') return <FullPageSpinner label="Checking your session" />
   if (status === 'unavailable') return <SessionUnavailable />
-  if (status === 'signed-out') return <Navigate to="/login" replace state={{ from: location }} />
+  if (status === 'signed-out') {
+    return <Navigate to="/login" replace state={signedOutByUser ? undefined : { from: location }} />
+  }
   if (user.must_change_password && location.pathname !== CHANGE_PASSWORD_PATH) {
     return <Navigate to={CHANGE_PASSWORD_PATH} replace />
   }

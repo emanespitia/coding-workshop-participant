@@ -195,4 +195,34 @@ describe('Saved sessions', () => {
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     await waitFor(() => expect(tokenStore.get()).toBeNull())
   })
+
+  it("starts the next person on their home page, not the page the last one signed out from", async () => {
+    mockApi({
+      'GET /auth/me': jsonResponse(200, { user: makeUser() }),
+      'POST /auth/login': jsonResponse(200, { user: makeUser(), tokens: TOKENS }),
+      ...DASHBOARD,
+    })
+    const user = userEvent.setup()
+    const { router } = renderApp('/account/profile', { tokens: TOKENS })
+
+    await user.click(await screen.findByRole('button', { name: 'Account menu for Maria Garcia' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Sign out' }))
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+
+    await fillAndSubmit(user, 'maria.garcia@acme.inc', 'Password123')
+    expect(await screen.findByRole('heading', { name: 'Hi, Maria' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/')
+  })
+
+  it('still returns to the requested page after signing in', async () => {
+    mockApi({
+      'POST /auth/login': jsonResponse(200, { user: makeUser(), tokens: TOKENS }),
+      'GET /incidents': jsonResponse(200, listOf([])),
+    })
+    const user = userEvent.setup()
+    const { router } = renderApp('/incidents/mine')
+
+    await fillAndSubmit(user, 'maria.garcia@acme.inc', 'Password123')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/incidents/mine'))
+  })
 })

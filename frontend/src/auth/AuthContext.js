@@ -5,6 +5,7 @@ import { createContext, useContext } from 'react'
  *
  * status: 'loading' (checking a saved session) | 'signed-in' | 'signed-out'
  *   | 'unavailable' (a saved session couldn't be checked: server unreachable or failing; see retry)
+ * signedOutByUser: the user chose "Sign out" (vs. the session expiring)
  */
 export const AuthContext = createContext(null)
 
