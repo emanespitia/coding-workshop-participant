@@ -3,6 +3,7 @@ import ApartmentOutlined from '@mui/icons-material/ApartmentOutlined'
 import AssignmentIndOutlined from '@mui/icons-material/AssignmentIndOutlined'
 import GroupOutlined from '@mui/icons-material/GroupOutlined'
 import InboxOutlined from '@mui/icons-material/InboxOutlined'
+import OutboxOutlined from '@mui/icons-material/OutboxOutlined'
 import PlaylistAddCheckOutlined from '@mui/icons-material/PlaylistAddCheckOutlined'
 import ReportProblemOutlined from '@mui/icons-material/ReportProblemOutlined'
 import SpaceDashboardOutlined from '@mui/icons-material/SpaceDashboardOutlined'
@@ -23,6 +24,7 @@ export const NAV_ITEMS = {
     { to: '/incidents', label: 'My work', icon: AssignmentIndOutlined },
     { to: '/incidents/available', label: 'Available', icon: InboxOutlined },
     { to: '/requests', label: 'My requests', icon: PlaylistAddCheckOutlined },
+    { to: '/incidents/mine', label: 'My reports', icon: OutboxOutlined },
   ],
   admin: [
     DASHBOARD,
@@ -30,6 +32,7 @@ export const NAV_ITEMS = {
     { to: '/requests', label: 'Requests', icon: PlaylistAddCheckOutlined },
     { to: '/facilities', label: 'Facilities', icon: ApartmentOutlined },
     { to: '/users', label: 'Users', icon: GroupOutlined },
+    { to: '/incidents/mine', label: 'My reports', icon: OutboxOutlined },
   ],
 }
 

@@ -36,21 +36,16 @@ const SORTS = {
 // to what they reported and shows admins everything.
 const ROLE_SCOPE = { engineer: 'assigned' }
 
-// Quick filters per role, kept in the URL as ?escalated=1 etc. "mine" = reported by me.
-const QUICK_FILTERS = {
-  admin: { escalated: 'Escalated', unassigned: 'Unassigned', mine: 'Reported by me' },
-  engineer: { mine: 'Reported by me' },
-  employee: {},
-}
+// Quick filters for the admin's full list, kept in the URL as ?escalated=1 / ?unassigned=1.
+const ADMIN_QUICK_FILTERS = { escalated: 'Escalated', unassigned: 'Unassigned' }
 
-function buildQuery({ q, status, sort, page, quick, building, floor }, role) {
+function buildQuery({ q, status, sort, page, quick, building, floor }, scope) {
   const params = new URLSearchParams({ sort, page: String(page), page_size: String(PAGE_SIZE) })
   if (q) params.set('q', q)
-  for (const key of quick) if (key !== 'mine') params.set(key, 'true')
+  for (const key of quick) params.set(key, 'true')
   if (STATUS_FILTERS[status]?.value) params.set('status', STATUS_FILTERS[status].value)
   if (building) params.set('building_id', building)
   if (floor) params.set('floor_id', floor)
-  const scope = quick.includes('mine') ? 'reported' : ROLE_SCOPE[role]
   if (scope) params.set('scope', scope)
   return `/incidents?${params}`
 }
@@ -84,15 +79,17 @@ function IncidentCount({ total, filters, buildingName, floorName, quickLabels })
 
 /**
  * The incidents the user can see: what they reported (employees), what's assigned to
- * them (engineers) or everything (admins). Filters live in the URL so they survive
- * reloads and the back button.
+ * them (engineers) or everything (admins). With `mine`, only the incidents the user
+ * reported ("My reports" for engineers and admins). Filters live in the URL so they
+ * survive reloads and the back button.
  */
-export default function IncidentListPage() {
+export default function IncidentListPage({ mine = false }) {
   const { user } = useAuth()
   const { isDesktop } = useBreakpoints()
   const [params, setParams] = useSearchParams()
-  const isAdmin = user.role === 'admin'
-  const quickFilters = QUICK_FILTERS[user.role] ?? {}
+  // Building / floor filters, quick filters and the headline count are for the admin's full list.
+  const isAdmin = user.role === 'admin' && !mine
+  const quickFilters = isAdmin ? ADMIN_QUICK_FILTERS : {}
   const filters = {
     q: params.get('q') ?? '',
     status: STATUS_FILTERS[params.get('status')] ? params.get('status') : 'all',
@@ -106,12 +103,14 @@ export default function IncidentListPage() {
   const [search, setSearch] = useState(filters.q)
   const location = useLocation()
   const [flash, setFlash] = useState(location.state?.flash ?? null)
-  const { data, error, loading, reload } = useApiData(buildQuery(filters, user.role))
+  const { data, error, loading, reload } = useApiData(buildQuery(filters, mine ? 'reported' : ROLE_SCOPE[user.role]))
   const buildings = useApiData(isAdmin ? '/buildings' : null)
   const floors = useApiData(filters.building ? `/buildings/${filters.building}/floors` : null)
 
-  const title = navItemsFor(user.role).find((item) => item.to === '/incidents')?.label ?? 'Incidents'
-  const isEmployee = user.role === 'employee'
+  const listPath = mine ? '/incidents/mine' : '/incidents'
+  const title = navItemsFor(user.role).find((item) => item.to === listPath)?.label ?? 'Incidents'
+  // Lists of the user's own reports (employees' list, or My reports) invite a first report.
+  const isEmployee = user.role === 'employee' || mine
   const filtered = Boolean(filters.q) || filters.status !== 'all' || filters.quick.length > 0 || Boolean(filters.building)
 
   const setFilters = (changes) => {

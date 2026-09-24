@@ -118,28 +118,64 @@ describe('Floor filter and headline count', () => {
   })
 })
 
-describe('Reported by me', () => {
-  it("switches an engineer's list from assigned work to their own reports", async () => {
-    const queries = openList(makeUser(ENGINEER_USER))
-    const user = userEvent.setup()
+describe('My reports', () => {
+  it.each([
+    ['engineer', makeUser(ENGINEER_USER)],
+    ['admin', makeUser(ADMIN_USER)],
+  ])('gives the %s a page of the incidents they reported', async (_, person) => {
+    const queries = openList(person, '/incidents/mine')
+    expect(await screen.findByRole('heading', { name: 'My reports' })).toBeInTheDocument()
     await screen.findByRole('table', { name: 'Incidents' })
-    expect(queries[0].get('scope')).toBe('assigned')
-
-    await user.click(screen.getByRole('button', { name: 'Reported by me' }))
-    expect(queries.at(-1).get('scope')).toBe('reported')
-    expect(screen.getByRole('button', { name: 'Reported by me' })).toHaveAttribute('aria-pressed', 'true')
+    expect(queries[0].get('scope')).toBe('reported')
+    expect(screen.getByRole('link', { name: 'My reports' })).toHaveAttribute('aria-current', 'page')
+    // the admin-only extras belong to the full Incidents list
+    expect(screen.queryByRole('combobox', { name: 'Building' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Escalated' })).not.toBeInTheDocument()
   })
 
-  it('works for admins alongside the other quick filters', async () => {
-    const queries = openList(makeUser(ADMIN_USER))
+  it('keeps search and filters working on My reports', async () => {
+    const queries = openList(makeUser(ENGINEER_USER), '/incidents/mine')
     const user = userEvent.setup()
     await screen.findByRole('table', { name: 'Incidents' })
+    await user.type(screen.getByLabelText('Search'), 'door{Enter}')
+    await choose(user, 'Status', 'Open')
+    expect(Object.fromEntries(queries.at(-1))).toMatchObject({ scope: 'reported', q: 'door', status: 'open' })
+  })
 
-    await user.click(screen.getByRole('button', { name: 'Reported by me' }))
-    await user.click(screen.getByRole('button', { name: 'Escalated' }))
-    expect(queries.at(-1).get('scope')).toBe('reported')
-    expect(queries.at(-1).get('escalated')).toBe('true')
-    expect(queries.at(-1).has('mine')).toBe(false)
+  it('invites a first report when there are none', async () => {
+    mockApi({
+      'GET /auth/me': jsonResponse(200, { user: makeUser(ADMIN_USER) }),
+      'GET /incidents': jsonResponse(200, listOf([])),
+    })
+    renderApp('/incidents/mine', { tokens: TOKENS })
+    expect(await screen.findByText("You haven't reported anything yet")).toBeInTheDocument()
+  })
+
+  it('is not a page for employees (their list is My incidents)', async () => {
+    openList(makeUser(), '/incidents/mine')
+    expect(await screen.findByRole('heading', { name: "You don't have access to this page" })).toBeInTheDocument()
+  })
+
+  it('shows the latest reports on the engineer dashboard', async () => {
+    const reported = []
+    mockApi({
+      'GET /auth/me': jsonResponse(200, { user: makeUser(ENGINEER_USER) }),
+      'GET /reports/summary': jsonResponse(200, makeSummary({ scope: 'assigned', communication: null })),
+      'GET /incidents': (req) => {
+        if (req.query.get('scope') === 'reported') {
+          reported.push(req.query)
+          return jsonResponse(200, listOf([makeIncident({ id: 77, title: 'Leaky tap I found' })]))
+        }
+        return jsonResponse(200, listOf([]))
+      },
+      'GET /assignment-requests': jsonResponse(200, { items: [] }),
+    })
+    renderApp('/', { tokens: TOKENS })
+
+    const panel = (await screen.findByRole('heading', { name: 'Your reports' })).closest('section')
+    expect(await within(panel).findByRole('link', { name: 'Leaky tap I found' })).toHaveAttribute('href', '/incidents/77')
+    expect(within(panel).getByRole('link', { name: 'See all' })).toHaveAttribute('href', '/incidents/mine')
+    expect(reported[0].get('page_size')).toBe('3')
   })
 })
 

@@ -34,7 +34,7 @@ export const routes = [
         element: <AppLayout />,
         children: [
           { path: '/', element: <HomePage /> },
-          { path: '/incidents', element: <IncidentListPage /> },
+          { path: '/incidents', element: <IncidentListPage key="all" /> },
           { path: '/incidents/new', element: <ReportIncidentPage /> },
           { path: '/incidents/:id', element: <IncidentDetailPage /> },
           { path: '/incidents/:id/edit', element: <EditIncidentPage /> },
@@ -43,6 +43,11 @@ export const routes = [
           {
             element: <RequireRole roles={['engineer']} />,
             children: [{ path: '/incidents/available', element: <AvailableIncidentsPage /> }],
+          },
+          {
+            // Employees' own list is /incidents; engineers and admins get a separate one.
+            element: <RequireRole roles={['engineer', 'admin']} />,
+            children: [{ path: '/incidents/mine', element: <IncidentListPage mine key="mine" /> }],
           },
           {
             element: <RequireRole roles={['engineer', 'admin']} />,

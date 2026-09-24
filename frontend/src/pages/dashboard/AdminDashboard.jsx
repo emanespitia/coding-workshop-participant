@@ -16,6 +16,7 @@ import { CategoryChart, RankedMeters, TrendChart } from './charts'
 import DashboardSection from './DashboardSection'
 import IncidentRows from './IncidentRows'
 import StatTile from './StatTile'
+import YourReports from './YourReports'
 
 const PERIODS = { 7: 'Last 7 days', 30: 'Last 30 days', 90: 'Last 90 days' }
 const AVAILABILITY_COLOR = { available: 'success', busy: 'warning', off_duty: 'default' }
@@ -250,6 +251,8 @@ export default function AdminDashboard({ flash }) {
           ))}
         </Box>
       </DashboardSection>
+
+      <YourReports />
 
       {s.communication && s.communication.incidents > 0 && (
         <DashboardSection title="Keeping people informed">

@@ -27,8 +27,8 @@ function navLinkNames() {
 describe('Navigation bar', () => {
   it.each([
     ['employee', ['Dashboard', 'My incidents', 'Report an incident']],
-    ['engineer', ['Dashboard', 'My work', 'Available', 'My requests']],
-    ['admin', ['Dashboard', 'Incidents', 'Requests', 'Facilities', 'Users']],
+    ['engineer', ['Dashboard', 'My work', 'Available', 'My requests', 'My reports']],
+    ['admin', ['Dashboard', 'Incidents', 'Requests', 'Facilities', 'Users', 'My reports']],
   ])('shows the %s their own links', async (role, links) => {
     await signedInAs(role)
     expect(navLinkNames()).toEqual(links)
@@ -69,7 +69,7 @@ describe('On phones', () => {
 
     expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Open menu' }))
-    expect(navLinkNames()).toEqual(['Dashboard', 'My work', 'Available', 'My requests'])
+    expect(navLinkNames()).toEqual(['Dashboard', 'My work', 'Available', 'My requests', 'My reports'])
 
     await user.click(screen.getByRole('link', { name: 'Available' }))
     expect(await screen.findByRole('heading', { name: 'Available' })).toBeInTheDocument()

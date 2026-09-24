@@ -14,6 +14,7 @@ import { formatLocation, timeAgo } from '../../utils/format'
 import DashboardSection from './DashboardSection'
 import IncidentRows from './IncidentRows'
 import StatTile from './StatTile'
+import YourReports from './YourReports'
 
 function hoursText(value) {
   if (value == null) return null
@@ -182,6 +183,8 @@ export default function EngineerDashboard({ flash }) {
                 : '…'}
             </Typography>
           </DashboardSection>
+
+          <YourReports />
 
           <DashboardSection title="Your pace">
             {times.resolve.count ? (
